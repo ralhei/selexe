@@ -1,0 +1,4 @@
+After unpacking the selexe package, just 'cd' into the directory and type
+
+    python setup.py install
+
