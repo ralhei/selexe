@@ -49,22 +49,21 @@ class SelexeRunner(object):
     def _wrapExecution(self, seleniumParser, wdc):
         """Wrap execution of selenium tests in setUp and tearDown functions if available"""
         if self.setUpFunc:
+            logging.info("Calling setUp()")
             self.setUpFunc(wdc)
+            logging.info("setUp() finished")
         try:
             return self._executeSelenium(seleniumParser, wdc)
         finally:
             if self.tearDownFunc:
+                logging.info("Calling tearDown()")
                 self.tearDownFunc(wdc)
+                logging.info("tearDown() finished")
 
     def _executeSelenium(self, seleniumParser, wdc):
         """Execute the actual selenium statements found in *sel file"""
         for command, target, value in seleniumParser:
-            logging.info('%s("%s", "%s")' % (command, target, value))
-            try:
-                func = getattr(wdc, 'wd_'+command)
-            except AttributeError:
-                raise NotImplementedError('no proper function for sel command "%s" implemented' % command)
-            func(target, value)
+            wdc(command, target, value)
         return wdc.getVerificationErrors()
 
 
@@ -75,7 +74,7 @@ def findFixtureFunctions(modulePath=None):
         if not os.path.exists(modulePath):
             raise SelexeError('Cannot find selexe fixture module "%s"')
     if modulePath:
-        path, moduleWithExt = os.path.split(modulePath)
+        path, moduleWithExt = os.path.split(os.path.realpath(modulePath))
         module = os.path.splitext(moduleWithExt)[0]
         if path and not path in sys.path:
             sys.path.append(path)
@@ -100,4 +99,6 @@ if __name__ == '__main__':
     logging.basicConfig(level=options.logging)
     for selFilename in args:
         s = SelexeRunner(selFilename, baseuri=options.baseuri, pmd=options.pmd, fixtures=options.fixtures)
-        print s.run()
+        res = s.run()
+        if res:
+            print "%s: %s" % (selFilename, res)
