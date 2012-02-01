@@ -8,8 +8,10 @@ def catch_assert(func):
     def wrap_func(self, *args, **kw):
         try:
             func(self, *args, **kw)
+            return True
         except AssertionError as e:
             self.verificationErrors.append(str(e))
+            return False
     return wrap_func
 
 
@@ -19,7 +21,10 @@ def create_verify_methods(cls):
     for method in cls.__dict__.keys():
         if method.startswith(PREFIX):
             postfix = method[lstr:]
-            setattr(cls, 'wd_verify'+postfix, catch_assert(cls.__dict__[method]))
+            catch_method = catch_assert(cls.__dict__[method])
+            catch_method_name = 'wd_verify'+postfix
+            catch_method.__name__ = catch_method_name
+            setattr(cls, catch_method_name, catch_method)
     return cls
 
 
@@ -38,7 +43,7 @@ class Webdriver(object):
         return self.verificationErrors[:]  # return a copy!
 
     def __call__(self, command, target, value=None):
-        logging.info('%s("%s", "%s")' % (command, target, value))
+        logging.info('%s("%s", %r)' % (command, target, value))
         try:
             func = getattr(self, 'wd_'+command)
         except AttributeError:
