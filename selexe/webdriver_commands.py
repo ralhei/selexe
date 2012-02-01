@@ -1,4 +1,4 @@
-import logging
+import logging, htmlentitydefs, re
 ###
 from selenium.webdriver.support.ui import Select
 
@@ -75,7 +75,8 @@ class Webdriver(object):
     #### All assert statements ####
 
     def wd_assertTextPresent(self, target, value=None):
-        assert target in self.driver.page_source, 'Text "%s" not found in page' % target
+        html = decodeHtmlEntities(self.driver.page_source)
+        assert target in html, 'Text "%s" not found in page' % target
 
     def wd_assertText(self, target, value):
         assert self._find_target(target).text == value, '"%s" != "%s"' % (self._find_target(target).text, value)
@@ -122,3 +123,8 @@ class Webdriver(object):
             raise RuntimeError('no way to find target "%s"' % target)
 
 
+
+htmlEntityPat = re.compile('&([^;]+);')
+
+def decodeHtmlEntities(aString):
+    return htmlEntityPat.sub(lambda m: unichr(htmlentitydefs.name2codepoint[m.group(1)]), aString)
