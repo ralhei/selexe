@@ -13,6 +13,9 @@ def catch_assert(func):
     return wrap_func
 
 
+def newCommand(self):
+    pass
+
 def create_verify_methods(cls):
     PREFIX = 'wd_assert'
     lstr = len(PREFIX)
