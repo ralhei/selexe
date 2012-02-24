@@ -2,7 +2,7 @@
 
 import sys, os, logging
 ###
-from selenium import webdriver
+from selenium import webdrive
 ###
 from parse_sel import SeleniumParser
 from webdriver_commands import Webdriver
