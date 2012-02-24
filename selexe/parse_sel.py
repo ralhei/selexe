@@ -20,3 +20,4 @@ if __name__ == '__main__':
     fp = open('testfiles/vector.sel')
     p = SeleniumParser(fp)
     print list(p)
+    pass
