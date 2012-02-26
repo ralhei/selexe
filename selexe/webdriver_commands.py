@@ -19,7 +19,7 @@ def create_verify(func):
     def wrap_func(self, *args, **kw):
         res, val = func(self, *args, **kw)
         verificationError = "Actual value \"" + str(res) + "\" did not match \"" + str(val) + "\""
-        if self.match(res, val):
+        if self.seleniumMatch(res, val):
             return True
         else:
             logging.error(verificationError) 
@@ -33,7 +33,7 @@ def create_verifyNot(func):
     def wrap_func(self, *args, **kw):
         res, val = func(self, *args, **kw)
         verificationError = "Actual value \"" + str(res) + "\" did match \"" + str(val) + "\""
-        if not self.match(res, val):
+        if not self.seleniumMatch(res, val):
             return True
         else: 
             logging.error(verificationError)
@@ -46,7 +46,7 @@ def create_assert(func):
     #return func
     def wrap_func(self, *args, **kw):
         res, val = func(self, *args, **kw)
-        assert self.match(res, val)
+        assert self.seleniumMatch(res, val)
     return wrap_func
 
 
@@ -54,7 +54,7 @@ def create_assertNot(func):
     #return func
     def wrap_func(self, *args, **kw):
         res, val = func(self, *args, **kw)
-        assert not self.match(res, val)
+        assert not self.seleniumMatch(res, val)
     return wrap_func
 
 
@@ -64,7 +64,7 @@ def create_waitFor(func):
         for _i in range (60):
             try:
                 res, val = func(self, *args, **kw)
-                assert self.match(res, val)
+                assert self.seleniumMatch(res, val)
                 break
             except AssertionError:
                 time.sleep(1)
@@ -79,7 +79,7 @@ def create_waitForNot(func):
         for _i in range (60):
             try:
                 res, val = func(self, *args, **kw)
-                assert not self.match(res, val)
+                assert not self.seleniumMatch(res, val)
                 break
             except AssertionError:
                 time.sleep(1)
@@ -320,24 +320,24 @@ class Webdriver(object):
         # remove trailing whitespaces of res to match IDE specifications
         res = res.strip()
 
-        ''' this function handles the three kinds of String-match Patterns which Selenium defines
-        in order to compare the pattern "val" against "res"
-        a.) regexp: a regular expression
-        b.) exact: a non-wildcard expression
-        c.) glob: a (possible) wildcard expression. This is the standard
+        ''' This function handles the three kinds of String-match Patterns which Selenium defines.
+        This is done in order to compare the pattern "val" against "res"
+        1.) regexp: a regular expression
+        2.) exact: a non-wildcard expression
+        3.) glob: a (possible) wildcard expression. This is the standard
         
         see: http://release.seleniumhq.org/selenium-remote-control/0.9.2/doc/dotnet/Selenium.html
         '''
-        # a) regexp
+        # 1) regexp
         if re.match("regexp:", val):
             try:
                 return res == re.match(val[7:], res).group(0)
             except AttributeError:
                 return False
-        # b.) exact
+        # 2) exact
         elif re.match("exact:", val):
             return res == val[6:] 
-        # c.) glob
+        # 3) glob
         else:
             return compare(res, val)  # using the "fnmatch" module method "fnmatch" in order to handle wildcards.
         
