@@ -1,6 +1,6 @@
 # -*- coding: iso-8859-1 -*-
 
-import logging, time, re
+import logging, time, re, types
 
 ###
 from selenium.webdriver.support.ui import Select
@@ -9,6 +9,7 @@ from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.common.alert import Alert
 from htmlentitydefs import name2codepoint
 from fnmatch import fnmatch as compare
+from userfunctions import Userfunctions 
 
 #globals
 # time until timeout in seconds
@@ -121,9 +122,11 @@ class Webdriver(object):
         self.base_url = base_url
         self.initVerificationErrors()
         self.variables = {}
+        self.importUserFunctions()
         # Action Chains will not work with several Firefox Versions
         # Firefox Version 10.2 should be ok
-        self.action = ActionChains(self.driver)    
+        self.action = ActionChains(self.driver)
+       
 
     def initVerificationErrors(self):
         self.verificationErrors = []
@@ -138,7 +141,14 @@ class Webdriver(object):
         except AttributeError:
             raise NotImplementedError('no proper function for sel command "%s" implemented' % command)
         func(self.preprocess(target), self.preprocess(value))
-
+        
+    def importUserFunctions(self):
+        funcNames = [key for (key, value) in Userfunctions.__dict__.iteritems() if isinstance(value, types.FunctionType)]
+        usr = Userfunctions()
+        for funcName in funcNames:
+            setattr(self, funcName, getattr(usr, funcName))
+        
+        
     ########################################################################################################
     # The actual translations from selenium-to-webdriver commands:
 
@@ -151,9 +161,7 @@ class Webdriver(object):
         self.driver.implicitly_wait(0)
 
     def wd_click(self, target, value=None):
-        a = self._find_target(target)
-        a.click()
-    
+        self._find_target(target).click()
     
     def wd_select(self, target, value):
         target_elem = self._find_target(target)
@@ -185,7 +193,7 @@ class Webdriver(object):
     def matchChildren(self, target, tvalue, method):
         for child in self._find_targets(target, method):
             res = {"text": child.text, "value": child.get_attribute("value")}
-            if self.seleniumMatch(res[method], tvalue ):
+            if self.seleniumMatch(res[method], tvalue):
                 return res[method]
         return tvalue
                
