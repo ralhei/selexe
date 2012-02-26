@@ -10,18 +10,18 @@ from selenium.webdriver.common.alert import Alert
 from htmlentitydefs import name2codepoint
 from fnmatch import fnmatchcase as compare
 from fnmatch import translate
-from userfunctions import Userfunctions 
+from userfunctions import Userfunctions
 
 #globals
 # time until timeout in seconds
-TIME = 10
+TIME = 20
 
 def create_verify(func):
     #return func
     def wrap_func(self, *args, **kw):
         res, val = func(self, *args, **kw)
         verificationError = "Actual value \"" + str(res) + "\" did not match \"" + str(val) + "\""
-        if self.seleniumMatch(val, res):
+        if self.matches(val, res):
             return True
         else:
             logging.error(verificationError) 
@@ -35,7 +35,7 @@ def create_verifyNot(func):
     def wrap_func(self, *args, **kw):
         res, val = func(self, *args, **kw)
         verificationError = "Actual value \"" + str(res) + "\" did match \"" + str(val) + "\""
-        if not self.seleniumMatch(val, res):
+        if not self.matches(val, res):
             return True
         else: 
             logging.error(verificationError)
@@ -48,7 +48,7 @@ def create_assert(func):
     #return func
     def wrap_func(self, *args, **kw):
         res, val = func(self, *args, **kw)
-        assert self.seleniumMatch(val, res)
+        assert self.matches(val, res)
     return wrap_func
 
 
@@ -56,17 +56,17 @@ def create_assertNot(func):
     #return func
     def wrap_func(self, *args, **kw):
         res, val = func(self, *args, **kw)
-        assert not self.seleniumMatch(val, res)
+        assert not self.matches(val, res)
     return wrap_func
 
 
 def create_waitFor(func):
     #return func
     def wrap_func(self, *args, **kw):
-        for _i in range (60):
+        for _i in range (int(TIME)):
             try:
                 res, val = func(self, *args, **kw)
-                assert self.seleniumMatch(val, res)
+                assert self.matches(val, res)
                 break
             except AssertionError:
                 time.sleep(1)
@@ -78,10 +78,10 @@ def create_waitFor(func):
 def create_waitForNot(func):
     #return func
     def wrap_func(self, *args, **kw):
-        for _i in range (60):
+        for _i in range (int(TIME)):
             try:
                 res, val = func(self, *args, **kw)
-                assert not self.seleniumMatch(val, res)
+                assert not self.matches(val, res)
                 break
             except AssertionError:
                 time.sleep(1)
@@ -157,9 +157,7 @@ class Webdriver(object):
         self.driver.get(self.base_url + target)
 
     def wd_clickAndWait(self, target, value=None):
-        self.driver.implicitly_wait(TIME)
         self._find_target(target).click()
-        self.driver.implicitly_wait(0)
 
     def wd_click(self, target, value=None):
         self._find_target(target).click()
@@ -194,7 +192,7 @@ class Webdriver(object):
     def matchChildren(self, target, tvalue, method):
         for child in self._find_children(target):
             res = {"text": child.text, "value": child.get_attribute("value")}
-            if self.seleniumMatch(tvalue, res[method]):
+            if self.matches(tvalue, res[method]):
                 return res[method]
         return tvalue
                
@@ -224,7 +222,7 @@ class Webdriver(object):
     #### All get statements ####
 
     def wd_getTextPresent(self, target, value=None):
-        if self.seleniumContainedIn(target, self.driver.page_source):
+        if self.isContained(target, self.driver.page_source):
             return "True", "True"
         else: 
             return "False", "True"
@@ -236,7 +234,11 @@ class Webdriver(object):
         except NoSuchElementException:
             return "False", "True"
 
-    def wd_getText(self, target, value=None):
+    def wd_getAttribute(self, target, value):
+        target, _sep, attr = target.rpartition("@") 
+        return self._find_target(target).get_attribute(attr), value
+        
+    def wd_getText(self, target, value):
         return self._find_target(target).text, value
         
     def wd_getValue(self, target, value):
@@ -261,6 +263,11 @@ class Webdriver(object):
     def wd_switchToFrame(self, target, value=None):
         pass
     
+    def wd_waitForPopUp(self, target, value):
+        pass
+        
+            
+    
     ##### Redirection ####
     
     def wd_verifyTextNotPresent(self, target, value=None):
@@ -268,6 +275,12 @@ class Webdriver(object):
     
     def wd_assertTextNotPresent(self, target, value=None):
         return wd_assertNotTextPresent(target, value)
+    
+    def wd_verifyElementNotPresent(self, target, value=None):
+        return wd_verifyNotElementPresent(target, value)
+    
+    def wd_assertElementNotPresent(self, target, value=None):
+        return wd_assertNotElementPresent(target, value)
     
     ########################################################################################################
     # Some helper methods
@@ -331,7 +344,7 @@ class Webdriver(object):
         else:
             raise RuntimeError('no way to find targets "%s"' % target)
         
-    def seleniumMatch(self, pat, res):
+    def matches(self, pat, res):
         # remove trailing whitespaces of result string to match IDE specifications
         res = res.strip()
 
@@ -357,7 +370,7 @@ class Webdriver(object):
             return compare(res, pat)  # using the "fnmatch" module method "fnmatchcase" in order to handle wildcards.
     
     
-    def seleniumContain(self, pat, text):
+    def isContained(self, pat, text):
         # 1) regexp
         if re.match("regexp:", pat):
             try:
