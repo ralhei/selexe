@@ -192,7 +192,7 @@ class Webdriver(object):
             raise RuntimeError("Unknown option locator type: " + tag)
      
     def matchChildren(self, target, tvalue, method):
-        for child in self._find_children(target, method):
+        for child in self._find_children(target):
             res = {"text": child.text, "value": child.get_attribute("value")}
             if self.seleniumMatch(tvalue, res[method]):
                 return res[method]
