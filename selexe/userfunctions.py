@@ -3,10 +3,16 @@ Created on 26.02.2012
 
 @author: Stephan Kienzle
 '''
-
+import httplib
 
 class Userfunctions(object):
-              
+           
+    def __init__(self, driver):
+        self.driver = driver
+        self.base_url = driver.base_url
+        if "http://" in self.base_url:
+            self.base_url = self.base_url[7:] 
+           
     '''
     Selenium.prototype.doPutRest = function(url, data) {
         var jQuery = this.browserbot.getUserWindow().jQuery;
@@ -15,7 +21,9 @@ class Userfunctions(object):
     };
     '''          
     def wd_putRest(self, target, value):
-        pass
+        connection =  httplib.HTTPConnection(self.base_url)
+        connection.request('PUT', target , value)
+        result = connection.getresponse()
     '''
     Selenium.prototype.doDeleteRest = function(url) {
         this.browserbot.getUserWindow().jQuery.ajax({url: url, async: false,

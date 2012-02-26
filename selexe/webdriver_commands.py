@@ -8,7 +8,8 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.common.alert import Alert
 from htmlentitydefs import name2codepoint
-from fnmatch import fnmatch as compare
+from fnmatch import fnmatchcase as compare
+from fnmatch import translate
 from userfunctions import Userfunctions 
 
 #globals
@@ -20,7 +21,7 @@ def create_verify(func):
     def wrap_func(self, *args, **kw):
         res, val = func(self, *args, **kw)
         verificationError = "Actual value \"" + str(res) + "\" did not match \"" + str(val) + "\""
-        if self.seleniumMatch(res, val):
+        if self.seleniumMatch(val, res):
             return True
         else:
             logging.error(verificationError) 
@@ -34,7 +35,7 @@ def create_verifyNot(func):
     def wrap_func(self, *args, **kw):
         res, val = func(self, *args, **kw)
         verificationError = "Actual value \"" + str(res) + "\" did match \"" + str(val) + "\""
-        if not self.seleniumMatch(res, val):
+        if not self.seleniumMatch(val, res):
             return True
         else: 
             logging.error(verificationError)
@@ -47,7 +48,7 @@ def create_assert(func):
     #return func
     def wrap_func(self, *args, **kw):
         res, val = func(self, *args, **kw)
-        assert self.seleniumMatch(res, val)
+        assert self.seleniumMatch(val, res)
     return wrap_func
 
 
@@ -55,7 +56,7 @@ def create_assertNot(func):
     #return func
     def wrap_func(self, *args, **kw):
         res, val = func(self, *args, **kw)
-        assert not self.seleniumMatch(res, val)
+        assert not self.seleniumMatch(val, res)
     return wrap_func
 
 
@@ -65,7 +66,7 @@ def create_waitFor(func):
         for _i in range (60):
             try:
                 res, val = func(self, *args, **kw)
-                assert self.seleniumMatch(res, val)
+                assert self.seleniumMatch(val, res)
                 break
             except AssertionError:
                 time.sleep(1)
@@ -80,7 +81,7 @@ def create_waitForNot(func):
         for _i in range (60):
             try:
                 res, val = func(self, *args, **kw)
-                assert not self.seleniumMatch(res, val)
+                assert not self.seleniumMatch(val, res)
                 break
             except AssertionError:
                 time.sleep(1)
@@ -144,7 +145,7 @@ class Webdriver(object):
         
     def importUserFunctions(self):
         funcNames = [key for (key, value) in Userfunctions.__dict__.iteritems() if isinstance(value, types.FunctionType)]
-        usr = Userfunctions()
+        usr = Userfunctions(self)
         for funcName in funcNames:
             setattr(self, funcName, getattr(usr, funcName))
         
@@ -191,9 +192,9 @@ class Webdriver(object):
             raise RuntimeError("Unknown option locator type: " + tag)
      
     def matchChildren(self, target, tvalue, method):
-        for child in self._find_targets(target, method):
+        for child in self._find_children(target, method):
             res = {"text": child.text, "value": child.get_attribute("value")}
-            if self.seleniumMatch(res[method], tvalue):
+            if self.seleniumMatch(tvalue, res[method]):
                 return res[method]
         return tvalue
                
@@ -220,10 +221,10 @@ class Webdriver(object):
     def wd_mouseOut(self, target, value=None):
         self.action.move_by_offset(0, 0).perform()
     
-    #### All assert statements ####
+    #### All get statements ####
 
     def wd_getTextPresent(self, target, value=None):
-        if target in self.driver.page_source:
+        if self.seleniumContainedIn(target, self.driver.page_source):
             return "True", "True"
         else: 
             return "False", "True"
@@ -303,33 +304,39 @@ class Webdriver(object):
         else:
             raise RuntimeError('no way to find target "%s"' % target)
 
-    def _find_targets(self, target, children=False):
+    def _find_targets(self, target):
         ttype, ttarget = self._tag_and_value(target)
         if ttype == 'css':
-            ttarget = (ttarget + ">*" if children else ttarget) 
             return self.driver.find_elements_by_css_selector(ttarget)
-        if ttype == 'xpath':
-            ttarget = (ttarget + "/*" if children else ttarget) 
+        if ttype == 'xpath': 
             return self.driver.find_elements_by_xpath(ttarget)
         elif ttype == 'name':
-            ttarget = ("" if children else ttarget) 
             return self.driver.find_elements_by_name(ttarget)
         elif ttype == 'link':
-            ttarget = ("" if children else ttarget) 
             return self.driver.find_elements_by_link_text(ttarget)
+        else:
+            raise RuntimeError('no way to find targets "%s"' % target)
+        
+    
+    def _find_children(self, target):
+        ttype, ttarget = self._tag_and_value(target)
+        if ttype == 'css':
+            return self.driver.find_elements_by_css_selector(ttarget + ">*" )
+        if ttype == 'xpath':
+            return self.driver.find_elements_by_xpath(ttarget + "/*")
+        elif ttype == 'name':
+            return self.driver.find_elements_by_xpath("//*[@name='" + ttarget + "']//*")
         elif ttype == 'id':
-            if not children:
-                raise RuntimeError('no way to find targets "%s"' % target)
             return self.driver.find_elements_by_xpath("//" + ttarget + "/*")
         else:
             raise RuntimeError('no way to find targets "%s"' % target)
         
-    def seleniumMatch(self, res, val):
-        # remove trailing whitespaces of res to match IDE specifications
+    def seleniumMatch(self, pat, res):
+        # remove trailing whitespaces of result string to match IDE specifications
         res = res.strip()
 
         ''' This function handles the three kinds of String-match Patterns which Selenium defines.
-        This is done in order to compare the pattern "val" against "res"
+        This is done in order to compare the pattern "pat" against "res".
         1.) regexp: a regular expression
         2.) exact: a non-wildcard expression
         3.) glob: a (possible) wildcard expression. This is the standard
@@ -337,18 +344,36 @@ class Webdriver(object):
         see: http://release.seleniumhq.org/selenium-remote-control/0.9.2/doc/dotnet/Selenium.html
         '''
         # 1) regexp
-        if re.match("regexp:", val):
+        if re.match("regexp:", pat):
             try:
-                return res == re.match(val[7:], res).group(0)
+                return res == re.match(pat[7:], res).group(0)
             except AttributeError:
                 return False
         # 2) exact
-        elif re.match("exact:", val):
-            return res == val[6:] 
+        elif re.match("exact:", pat):
+            return res == pat[6:] 
         # 3) glob
         else:
-            return compare(res, val)  # using the "fnmatch" module method "fnmatch" in order to handle wildcards.
-        
+            return compare(res, pat)  # using the "fnmatch" module method "fnmatchcase" in order to handle wildcards.
+    
+    
+    def seleniumContain(self, pat, text):
+        # 1) regexp
+        if re.match("regexp:", pat):
+            try:
+                return re.search(pat[7:], text).group(0)
+            except AttributeError:
+                return False
+        # 2) exact
+        elif re.match("exact:", pat):
+            return pat[6:] in text 
+        # 3) glob
+        else:
+            pat = translate(pat)[:-1] # creating a regular expression from a wildcard expression and cutting of the word frontier symbol ($)
+            return re.search(pat, text) 
+    
+    
+    
     def preprocess(self, s):
         '''
         Variables have to be inserted and a few parser drawbacks have to be handled:
