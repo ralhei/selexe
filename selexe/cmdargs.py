@@ -7,7 +7,7 @@ options = [
     (('--baseuri', '-U'), dict(action='store', default=None,
                           help='base URI of server to run the selenium tests, e.g. "http://localhost:8080"')),
     (('--pmd',), dict(action='store_true', default=False, help='enable postmortem debugging')),
-    (('--logging',), dict(action='store', default='warning',
+    (('--logging',), dict(action='store', default='info',
                          help='print verbose information about current test (debug, info, warning)')),
     (('--fixtures', '-F'), dict(action='store', default=None,
                                 help='python module containing setUp() or tearDown() fixture functions'))
