@@ -165,7 +165,7 @@ class Webdriver(object):
     
     def wd_select(self, target, value):
         target_elem = find_target(self.driver, target)
-        tag, tvalue = self._tag_and_value(value)
+        tag, tvalue = _tag_and_value(value)
         select = Select(target_elem)
         ''' 
         label=labelPattern: matches options based on their labels, i.e. the visible text. (This is the default.)
@@ -192,7 +192,6 @@ class Webdriver(object):
      
     def matchChildren(self, target, tvalue, method):
         for child in find_children(self.driver, target):
-            res = {"text": child.text, "value": child.get_attribute("value")}
             if self.matches(tvalue, res[method]):
                 return res[method]
         return tvalue
@@ -277,28 +276,30 @@ class Webdriver(object):
         
             
     def wd_selectWindow(self, target, value):
-        ttype, ttarget = self._tag_and_value(target)
+        ttype, ttarget = _tag_and_value(target)
         if (ttype != 'name' and ttarget != 'null'):
             raise NotImplementedError('only window locators with the prefix "name=" are supported currently')
         if ttarget == "null":
             ttarget = 0
         self.driver.switch_to_window(ttarget)
         
-            
-    
+    def wd_selectFrame(self, target, value):
+        webElem = find_target(self.driver, target)
+        self.driver.switch_to_frame(webElem)
+         
     ##### Aliases ####
     
     def wd_verifyTextNotPresent(self, target, value=None):
-        return wd_verifyNotTextPresent(target, value)
+        return self.wd_verifyNotTextPresent(target, value)
     
     def wd_assertTextNotPresent(self, target, value=None):
-        return wd_assertNotTextPresent(target, value)
+        return self.wd_assertNotTextPresent(target, value)
     
     def wd_verifyElementNotPresent(self, target, value=None):
-        return wd_verifyNotElementPresent(target, value)
+        return self.wd_verifyNotElementPresent(target, value)
     
     def wd_assertElementNotPresent(self, target, value=None):
-        return wd_assertNotElementPresent(target, value)
+        return self.wd_assertNotElementPresent(target, value)
     
     ########################################################################################################
     # Some helper methods
@@ -354,9 +355,9 @@ def find_target(driver, target):
         return driver.find_element_by_link_text(ttarget)
     elif ttype == None:
         try:
-            return driver.find_elements_by_id(ttarget)
+            return driver.find_element_by_id(ttarget)
         except:
-            return driver.find_elements_by_name(ttarget) 
+            return driver.find_element_by_name(ttarget) 
     else:
         raise RuntimeError('no way to find target "%s"' % target)
 
@@ -382,7 +383,7 @@ def find_children(driver, target):
         return driver.find_elements_by_xpath(ttarget + "/*")
     elif ttype == 'name':
         return driver.find_elements_by_xpath("//*[@name='" + ttarget + "']//*")
-    elif ttype == 'id':
+    elif ttype in ['id', None]:
         return driver.find_elements_by_xpath("//" + ttarget + "/*")
     else:
         raise RuntimeError('no way to find targets "%s"' % target)
@@ -427,16 +428,26 @@ def isContained(pat, text):
         return pat[6:] in text
     # 3) glob
     else:
-        print translate(pat)
         pat = translateWilcardToRegex(pat)
-        print pat
         return re.search(pat, text) 
     
 def translateWilcardToRegex(wc):
-    metacharacters = ['.','[',']','^','$','|','+','(',')','\\']
+    metacharacters = ['\\', '.', '$','|','+','(',')']
     for char in metacharacters:
         wc = wc.replace(char, '\\' + char)
-    wc. 
-    #wc = wc.replace("*", ".*").replace("?", ".").replace('[!', '[^')
-    return wc
+    wc = re.sub(r"(?<!\\)\*", r".*", wc)
+    wc = re.sub(r"(?<!\\)\?", r".", wc)
+    nonEscapeBrackets = []
+    for bracketPair in re.finditer(r"(?<!\\)\[[^\[]*?(?<!\\)\]", wc):
+        nonEscapeBrackets.append(bracketPair.start())
+        nonEscapeBrackets.append(bracketPair.end() - 1)
+    newWc = ""
+    i = 0
+    for c in wc:
+        if c in ['[',']'] and not i in nonEscapeBrackets:
+            c = "\\" + c
+        newWc = newWc + c
+        i+=1
+    return newWc
+    
 

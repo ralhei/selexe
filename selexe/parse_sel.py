@@ -12,11 +12,8 @@ class SeleniumParser(object):
         body = self.soup.find('tbody')
         for tr in body.findAll('tr'):
             # return tuple (command, target, value) -> this corresponds to column names in Selenium IDE
-<<<<<<< HEAD
             t = tuple([(td.string) for td in tr.findAll('td')])
-=======
-            t = tuple([td.text for td in tr.findAll('td')])
->>>>>>> d26632d10a607786817396ac3803d8123ed24326
+            #t = tuple([td.text for td in tr.findAll('td')])
             yield t
 
 
