@@ -63,7 +63,7 @@ def create_assertNot(func):
 def create_waitFor(func):
     #return func
     def wrap_func(self, *args, **kw):
-        for _i in range (int(TIME)):
+        for _i in range (TIME):
             try:
                 res, val = func(self, *args, **kw)
                 assert matches(val, res)
@@ -78,7 +78,7 @@ def create_waitFor(func):
 def create_waitForNot(func):
     #return func
     def wrap_func(self, *args, **kw):
-        for _i in range (int(TIME)):
+        for _i in range (TIME):
             try:
                 res, val = func(self, *args, **kw)
                 assert not matches(val, res)
@@ -119,7 +119,7 @@ def create_additional_methods(cls):
 class Webdriver(object):
     def __init__(self, driver, base_url):
         self.driver = driver
-        self.driver.implicitly_wait(0)
+        self.driver.implicitly_wait(3)
         self.base_url = base_url
         self.initVerificationErrors()
         self.variables = {}
@@ -154,6 +154,7 @@ class Webdriver(object):
     # The actual translations from selenium-to-webdriver commands:
 
     def wd_open(self, target, value=None):
+        print self.base_url + target
         self.driver.get(self.base_url + target)
 
     def wd_clickAndWait(self, target, value=None):
@@ -256,19 +257,36 @@ class Webdriver(object):
     
     def wd_getConfirmation(self, target, value=None):
         return self.wd_getAlert(target, value)
-    
-    def wd_switchToWindow(self, target, value=None):
-        pass
-    
-    def wd_switchToFrame(self, target, value=None):
-        pass
-    
+   
     def wd_waitForPopUp(self, target, value):
-        pass
+        try:
+            _time = int(value)
+        except ValueError:
+            _time = TIME
+        if target in ("null", "0"):
+            raise NotImplementedError('"null" or "0" are currently not available as pop up locators')
+        for i in range(_time):
+            try:
+                self.driver.switch_to_window(target)
+                self.driver.switch_to_window(0)
+                break
+            except NoSuchWindowException:
+                time.sleep(1)
+        else:
+            raise NoSuchWindowException('timed out')
+        
+            
+    def wd_selectWindow(self, target, value):
+        ttype, ttarget = self._tag_and_value(target)
+        if (ttype != 'name' and ttarget != 'null'):
+            raise NotImplementedError('only window locators with the prefix "name=" are supported currently')
+        if ttarget == "null":
+            ttarget = 0
+        self.driver.switch_to_window(ttarget)
         
             
     
-    ##### Redirection ####
+    ##### Aliases ####
     
     def wd_verifyTextNotPresent(self, target, value=None):
         return wd_verifyNotTextPresent(target, value)
@@ -397,6 +415,7 @@ def matches(pat, res):
 
 
 def isContained(pat, text):
+    pat = unicode(pat)
     # 1) regexp
     if re.match("regexp:", pat):
         try:
@@ -405,8 +424,19 @@ def isContained(pat, text):
             return False
     # 2) exact
     elif re.match("exact:", pat):
-        return pat[6:] in text 
+        return pat[6:] in text
     # 3) glob
     else:
-        pat = translate(pat)[:-1] # creating a regular expression from a wildcard expression and cutting of the word frontier symbol ($)
+        print translate(pat)
+        pat = translateWilcardToRegex(pat)
+        print pat
         return re.search(pat, text) 
+    
+def translateWilcardToRegex(wc):
+    metacharacters = ['.','[',']','^','$','|','+','(',')','\']
+    for char in metacharacters:
+        wc = wc.replace(char, '\\' + char)
+    wc. 
+    #wc = wc.replace("*", ".*").replace("?", ".").replace('[!', '[^')
+    return wc
+
