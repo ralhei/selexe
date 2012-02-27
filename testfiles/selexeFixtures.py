@@ -1,8 +1,8 @@
 
 
 def setUp(wdc):
-    wdc('open', '/pypi/pyRserve')
+    wdc('open', '/static/setUpTearDown')
 
 
 def tearDown(wdc):
-    wdc('open', '/pypi/pyRserve')
+    wdc('open', '/static/setUpTearDown')

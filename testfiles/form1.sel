@@ -3,50 +3,34 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head profile="http://selenium-ide.openqa.org/profiles/test-case">
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-<link rel="selenium.base" href="http://pypi.python.org/" />
-<title>pypi1</title>
+<link rel="selenium.base" href="http://localhost:8080/" />
+<title>formTests</title>
 </head>
 <body>
 <table cellpadding="1" cellspacing="1" border="1">
 <thead>
-<tr><td rowspan="1" colspan="3">pypi1</td></tr>
+<tr><td rowspan="1" colspan="3">formTests</td></tr>
 </thead><tbody>
 <tr>
 	<td>open</td>
-	<td>/pypi?%3Aaction=browse</td>
+	<td>/static/form1</td>
 	<td></td>
-</tr>
-<tr>
-	<td>verifyValue</td>
-	<td>id=submit</td>
-	<td>search</td>
-</tr>
-<tr>
-	<td>verifyTextPresent</td>
-	<td>Please select a category from below.</td>
-	<td></td>
-</tr>
-<tr>
-	<td>verifyText</td>
-	<td>link=Website maintained by the Python community</td>
-	<td>Website maintained by the Python community</td>
 </tr>
 <tr>
 	<td>type</td>
-	<td>id=term</td>
+	<td>id=id_text1</td>
 	<td>selexe</td>
 </tr>
 <tr>
 	<td>clickAndWait</td>
-	<td>id=submit</td>
+	<td>id=id_submit</td>
 	<td></td>
 </tr>
 <tr>
 	<td>verifyText</td>
-	<td>css=p</td>
-	<td>A tool to directly execute selenese files created by Selenium IDE</td>
+	<td>id=text1</td>
+	<td>selexe</td>
 </tr>
-
 </tbody></table>
 </body>
 </html>
