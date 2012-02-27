@@ -127,4 +127,7 @@ class Webdriver(object):
 htmlEntityPat = re.compile('&([^;]+);')
 
 def decodeHtmlEntities(aString):
-    return htmlEntityPat.sub(lambda m: unichr(htmlentitydefs.name2codepoint[m.group(1)]), aString)
+    res = htmlEntityPat.sub(lambda m: unichr(htmlentitydefs.name2codepoint[m.group(1)]), aString)
+    # replace all original &nbsp; chars ( \xa0 in unicode) to plain space chars:
+    res = res.replace(u'\xa0', u' ')
+    return res
