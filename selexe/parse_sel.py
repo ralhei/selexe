@@ -5,7 +5,8 @@ class SeleniumParser(object):
     def __init__(self, fp):
         self.fp = fp
         self.soup = BeautifulSoup.BeautifulSoup(fp.read())
-        self.baseuri = self.soup.find('link', attrs={'rel': 'selenium.base'})['href']
+        baseUrlLink = self.soup.find('link', attrs={'rel': 'selenium.base'})
+        self.baseuri = baseUrlLink['href'] if baseUrlLink else None
 
     def __iter__(self):
         body = self.soup.find('tbody')
@@ -17,6 +18,7 @@ class SeleniumParser(object):
 
 
 if __name__ == '__main__':
-    fp = open('testfiles/vector.sel')
+    import sys
+    fp = open(sys.argv[1])
     p = SeleniumParser(fp)
     print list(p)

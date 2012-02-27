@@ -69,7 +69,6 @@ class SelexeRunner(object):
     def _executeSelenium(self, seleniumParser, wdc):
         """Execute the actual selenium statements found in *sel file"""
         for command, target, value in seleniumParser:
-            #import pdb;pdb.set_trace()
             wdc(command, target, value)
         return wdc.getVerificationErrors()
 
