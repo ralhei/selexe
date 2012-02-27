@@ -30,9 +30,13 @@ class SelexeRunner(object):
         seleniumParser = SeleniumParser(fp)
         exe = self._wrapExecution if not self.pmd else self._wrapExecutionPDB
         driver = webdriver.Firefox()
+        baseURI = self.baseuri or seleniumParser.baseuri
+        if baseURI.endswith('/'):
+            baseURI = baseURI[:-1]
+        logging.info('baseURI: %s' % baseURI)
         try:
             driver.implicitly_wait(30)
-            wdc = Webdriver(driver, self.baseuri or seleniumParser.baseuri)
+            wdc = Webdriver(driver, baseURI)
             return exe(seleniumParser, wdc)
         finally:
             driver.quit()
@@ -52,6 +56,8 @@ class SelexeRunner(object):
             logging.info("Calling setUp()")
             self.setUpFunc(wdc)
             logging.info("setUp() finished")
+            # remove all verification errors possibly generated during setUpFunct()
+            wdc.initVerificationErrors()
         try:
             return self._executeSelenium(seleniumParser, wdc)
         finally:

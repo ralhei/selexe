@@ -433,7 +433,7 @@ def isContained(pat, text):
         return re.search(pat, text) 
     
 def translateWilcardToRegex(wc):
-    metacharacters = ['.','[',']','^','$','|','+','(',')','\']
+    metacharacters = ['.','[',']','^','$','|','+','(',')','\\']
     for char in metacharacters:
         wc = wc.replace(char, '\\' + char)
     wc. 
