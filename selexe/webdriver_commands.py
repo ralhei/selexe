@@ -1,4 +1,7 @@
-import logging, htmlentitydefs, re, types, time
+# -*- coding: iso-8859-1 -*-
+
+import logging, time, re, types
+
 ###
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.action_chains import ActionChains
@@ -8,8 +11,6 @@ from htmlentitydefs import name2codepoint
 from fnmatch import fnmatchcase as compare
 from fnmatch import translate
 from userfunctions import Userfunctions
-
-
 
 #globals
 # time until timeout in seconds
@@ -23,7 +24,7 @@ def create_verify(func):
         if matches(val, res):
             return True
         else:
-            logging.error(verificationError)
+            logging.error(verificationError) 
             self.verificationErrors.append(verificationError)
             return False
     return wrap_func
@@ -36,7 +37,7 @@ def create_verifyNot(func):
         verificationError = "Actual value \"" + str(res) + "\" did match \"" + str(val) + "\""
         if not matches(val, res):
             return True
-        else:
+        else: 
             logging.error(verificationError)
             self.verificationErrors.append(verificationError)
             return False
@@ -62,7 +63,7 @@ def create_assertNot(func):
 def create_waitFor(func):
     #return func
     def wrap_func(self, *args, **kw):
-        for _i in range (int(TIME)):
+        for _i in range (TIME):
             try:
                 res, val = func(self, *args, **kw)
                 assert matches(val, res)
@@ -77,7 +78,7 @@ def create_waitFor(func):
 def create_waitForNot(func):
     #return func
     def wrap_func(self, *args, **kw):
-        for _i in range (int(TIME)):
+        for _i in range (TIME):
             try:
                 res, val = func(self, *args, **kw)
                 assert not matches(val, res)
@@ -118,7 +119,7 @@ def create_additional_methods(cls):
 class Webdriver(object):
     def __init__(self, driver, base_url):
         self.driver = driver
-        self.driver.implicitly_wait(0)
+        self.driver.implicitly_wait(3)
         self.base_url = base_url
         self.initVerificationErrors()
         self.variables = {}
@@ -126,13 +127,13 @@ class Webdriver(object):
         # Action Chains will not work with several Firefox Versions
         # Firefox Version 10.2 should be ok
         self.action = ActionChains(self.driver)
-
+       
 
     def initVerificationErrors(self):
         self.verificationErrors = []
 
     def getVerificationErrors(self):
-        return self.verificationErrors[:] # return a copy!
+        return self.verificationErrors[:]  # return a copy!
 
     def __call__(self, command, target, value=None):
         logging.info('%s("%s", "%s")' % (command, target, value))
@@ -141,18 +142,19 @@ class Webdriver(object):
         except AttributeError:
             raise NotImplementedError('no proper function for sel command "%s" implemented' % command)
         func(self.preprocess(target), self.preprocess(value))
-
+        
     def importUserFunctions(self):
         funcNames = [key for (key, value) in Userfunctions.__dict__.iteritems() if isinstance(value, types.FunctionType)]
         usr = Userfunctions(self)
         for funcName in funcNames:
             setattr(self, funcName, getattr(usr, funcName))
-
-
+        
+        
     ########################################################################################################
     # The actual translations from selenium-to-webdriver commands:
 
     def wd_open(self, target, value=None):
+        print self.base_url + target
         self.driver.get(self.base_url + target)
 
     def wd_clickAndWait(self, target, value=None):
@@ -160,20 +162,20 @@ class Webdriver(object):
 
     def wd_click(self, target, value=None):
         find_target(self.driver, target).click()
-
+    
     def wd_select(self, target, value):
         target_elem = find_target(self.driver, target)
-        tag, tvalue = self._tag_and_value(value)
+        tag, tvalue = _tag_and_value(value)
         select = Select(target_elem)
-        '''
-label=labelPattern: matches options based on their labels, i.e. the visible text. (This is the default.)
-label=regexp:^[Oo]ther
-value=valuePattern: matches options based on their values.
-value=other
-id=id: matches options based on their ids.
-id=option1
-index=index: matches an option based on its index (offset from zero).
-index=2 '''
+        ''' 
+        label=labelPattern: matches options based on their labels, i.e. the visible text. (This is the default.)
+            label=regexp:^[Oo]ther
+        value=valuePattern: matches options based on their values.
+            value=other
+        id=id: matches options based on their ids.
+            id=option1
+        index=index: matches an option based on its index (offset from zero).
+            index=2 '''
         if tag in ['label', None]:
             tvalue = self.matchChildren(target, tvalue, "text")
             select.select_by_visible_text(tvalue)
@@ -187,45 +189,44 @@ index=2 '''
             select.select_by_index(int(tvalue))
         else:
             raise RuntimeError("Unknown option locator type: " + tag)
-
+     
     def matchChildren(self, target, tvalue, method):
         for child in find_children(self.driver, target):
-            res = {"text": child.text, "value": child.get_attribute("value")}
             if self.matches(tvalue, res[method]):
                 return res[method]
         return tvalue
-
-
+               
+        
     def wd_type(self, target, value):
         target_elem = find_target(self.driver, target)
         target_elem.clear()
         target_elem.send_keys(value)
-
+        
     def wd_check(self, target, value=None):
         target_elem = find_target(self.driver, target)
         if not target_elem.is_selected():
             target_elem.click()
-
+    
     def wd_uncheck(self, target, value=None):
         target_elem = find_target(self.driver, target)
         if target_elem.is_selected():
             target_elem.click()
-
+    
     def wd_mouseOver(self, target, value=None):
         target_elem = find_target(self.driver, target)
         self.action.move_to_element(target_elem).perform()
 
     def wd_mouseOut(self, target, value=None):
         self.action.move_by_offset(0, 0).perform()
-
+    
     #### All get statements ####
 
     def wd_getTextPresent(self, target, value=None):
         if isContained(target, self.driver.page_source):
             return "True", "True"
-        else:
+        else: 
             return "False", "True"
-
+        
     def wd_getElementPresent(self, target, value=None):
         try:
             find_target(self.driver, target)
@@ -234,15 +235,15 @@ index=2 '''
             return "False", "True"
 
     def wd_getAttribute(self, target, value):
-        target, _sep, attr = target.rpartition("@")
+        target, _sep, attr = target.rpartition("@") 
         return find_target(self.driver, target).get_attribute(attr), value
-
+        
     def wd_getText(self, target, value):
         return find_target(self.driver, target).text, value
-
+        
     def wd_getValue(self, target, value):
         return find_target(self.driver, target).get_attribute("value"), value
-
+    
     def wd_getXpathCount(self, target, value):
         count = len(find_targets(self.driver, target))
         return str(count), value
@@ -252,59 +253,78 @@ index=2 '''
         text = alert.text
         alert.accept()
         return text, target
-
+    
     def wd_getConfirmation(self, target, value=None):
         return self.wd_getAlert(target, value)
-
-    def wd_switchToWindow(self, target, value=None):
-        pass
-
-    def wd_switchToFrame(self, target, value=None):
-        pass
-
+   
     def wd_waitForPopUp(self, target, value):
-        pass
-
-
-
-    ##### Redirection ####
-
+        try:
+            _time = int(value)
+        except ValueError:
+            _time = TIME
+        if target in ("null", "0"):
+            raise NotImplementedError('"null" or "0" are currently not available as pop up locators')
+        for i in range(_time):
+            try:
+                self.driver.switch_to_window(target)
+                self.driver.switch_to_window(0)
+                break
+            except NoSuchWindowException:
+                time.sleep(1)
+        else:
+            raise NoSuchWindowException('timed out')
+        
+            
+    def wd_selectWindow(self, target, value):
+        ttype, ttarget = _tag_and_value(target)
+        if (ttype != 'name' and ttarget != 'null'):
+            raise NotImplementedError('only window locators with the prefix "name=" are supported currently')
+        if ttarget == "null":
+            ttarget = 0
+        self.driver.switch_to_window(ttarget)
+        
+    def wd_selectFrame(self, target, value):
+        webElem = find_target(self.driver, target)
+        self.driver.switch_to_frame(webElem)
+         
+    ##### Aliases ####
+    
     def wd_verifyTextNotPresent(self, target, value=None):
-        return wd_verifyNotTextPresent(target, value)
-
+        return self.wd_verifyNotTextPresent(target, value)
+    
     def wd_assertTextNotPresent(self, target, value=None):
-        return wd_assertNotTextPresent(target, value)
-
+        return self.wd_assertNotTextPresent(target, value)
+    
     def wd_verifyElementNotPresent(self, target, value=None):
-        return wd_verifyNotElementPresent(target, value)
-
+        return self.wd_verifyNotElementPresent(target, value)
+    
     def wd_assertElementNotPresent(self, target, value=None):
-        return wd_assertNotElementPresent(target, value)
-
+        return self.wd_assertNotElementPresent(target, value)
+    
     ########################################################################################################
     # Some helper methods
 
     def preprocess(self, s):
         '''
-Variables have to be inserted and a few parser drawbacks have to be handled:
-1) the parser does not decode html entitys
-2) empty strings are given back as "None" by the parser so they have to be reverted
-3) the return value of the parser is BeautifulSoup.BeautifulSoup.NavigableString so
-so this has to be changed to a workable type (currently unicode)
-'''
+        Variables have to be inserted and a few parser drawbacks have to be handled:
+        1) the parser does not decode html entitys
+        2) empty strings are given back as "None" by the parser so they have to be reverted
+        3) the return value of the parser is BeautifulSoup.BeautifulSoup.NavigableString so
+        so this has to be changed to a workable type (currently unicode)
+        '''
         if not s:
             s =""
-        else:
-            s = unicode(s)
+        else: 
+            s = unicode(s) 
             s = self.htmlentitydecode(s)
-            s = self.insertVariables(s)
+            s = self.insertVariables(s)                
         return s
-
+    
     def insertVariables(self, s):
         for var in self.variables.keys():
             s = s.replace("${" + var + "}", self.variables[var])
         return s
-
+    
     def htmlentitydecode(self, s):
         return re.sub('&(%s);' % '|'.join(name2codepoint), lambda m: unichr(name2codepoint[m.group(1)]), s)
 
@@ -335,9 +355,9 @@ def find_target(driver, target):
         return driver.find_element_by_link_text(ttarget)
     elif ttype == None:
         try:
-            return driver.find_elements_by_id(ttarget)
+            return driver.find_element_by_id(ttarget)
         except:
-            return driver.find_elements_by_name(ttarget)
+            return driver.find_element_by_name(ttarget) 
     else:
         raise RuntimeError('no way to find target "%s"' % target)
 
@@ -345,7 +365,7 @@ def find_targets(driver, target):
     ttype, ttarget = _tag_and_value(target)
     if ttype == 'css':
         return driver.find_elements_by_css_selector(ttarget)
-    if ttype == 'xpath':
+    if ttype == 'xpath': 
         return driver.find_elements_by_xpath(ttarget)
     elif ttype == 'name':
         return driver.find_elements_by_name(ttarget)
@@ -353,7 +373,7 @@ def find_targets(driver, target):
         return driver.find_elements_by_link_text(ttarget)
     else:
         raise RuntimeError('no way to find targets "%s"' % target)
-
+    
 
 def find_children(driver, target):
     ttype, ttarget = _tag_and_value(target)
@@ -363,23 +383,24 @@ def find_children(driver, target):
         return driver.find_elements_by_xpath(ttarget + "/*")
     elif ttype == 'name':
         return driver.find_elements_by_xpath("//*[@name='" + ttarget + "']//*")
-    elif ttype == 'id':
+    elif ttype in ['id', None]:
         return driver.find_elements_by_xpath("//" + ttarget + "/*")
     else:
         raise RuntimeError('no way to find targets "%s"' % target)
-
-
+    
+    
 def matches(pat, res):
     # remove trailing whitespaces of result string to match IDE specifications
     res = res.strip()
 
     ''' This function handles the three kinds of String-match Patterns which Selenium defines.
-This is done in order to compare the pattern "pat" against "res".
-1.) regexp: a regular expression
-2.) exact: a non-wildcard expression
-3.) glob: a (possible) wildcard expression. This is the standard
-see: http://release.seleniumhq.org/selenium-remote-control/0.9.2/doc/dotnet/Selenium.html
-'''
+    This is done in order to compare the pattern "pat" against "res".
+    1.) regexp: a regular expression
+    2.) exact: a non-wildcard expression
+    3.) glob: a (possible) wildcard expression. This is the standard
+    
+    see: http://release.seleniumhq.org/selenium-remote-control/0.9.2/doc/dotnet/Selenium.html
+    '''
     # 1) regexp
     if re.match("regexp:", pat):
         try:
@@ -388,13 +409,14 @@ see: http://release.seleniumhq.org/selenium-remote-control/0.9.2/doc/dotnet/Sele
             return False
     # 2) exact
     elif re.match("exact:", pat):
-        return res == pat[6:]
+        return res == pat[6:] 
     # 3) glob
     else:
-        return compare(res, pat) # using the "fnmatch" module method "fnmatchcase" in order to handle wildcards.
+        return compare(res, pat)  # using the "fnmatch" module method "fnmatchcase" in order to handle wildcards.
 
 
 def isContained(pat, text):
+    pat = unicode(pat)
     # 1) regexp
     if re.match("regexp:", pat):
         try:
@@ -406,14 +428,26 @@ def isContained(pat, text):
         return pat[6:] in text
     # 3) glob
     else:
-        pat = translate(pat)[:-1] # creating a regular expression from a wildcard expression and cutting of the word frontier symbol ($)
-        return re.search(pat, text)
+        pat = translateWilcardToRegex(pat)
+        return re.search(pat, text) 
+    
+def translateWilcardToRegex(wc):
+    metacharacters = ['\\', '.', '$','|','+','(',')']
+    for char in metacharacters:
+        wc = wc.replace(char, '\\' + char)
+    wc = re.sub(r"(?<!\\)\*", r".*", wc)
+    wc = re.sub(r"(?<!\\)\?", r".", wc)
+    nonEscapeBrackets = []
+    for bracketPair in re.finditer(r"(?<!\\)\[[^\[]*?(?<!\\)\]", wc):
+        nonEscapeBrackets.append(bracketPair.start())
+        nonEscapeBrackets.append(bracketPair.end() - 1)
+    newWc = ""
+    i = 0
+    for c in wc:
+        if c in ['[',']'] and not i in nonEscapeBrackets:
+            c = "\\" + c
+        newWc = newWc + c
+        i+=1
+    return newWc
+    
 
-
-htmlEntityPat = re.compile('&([^;]+);')
-
-def decodeHtmlEntities(aString):
-    res = htmlEntityPat.sub(lambda m: unichr(htmlentitydefs.name2codepoint[m.group(1)]), aString)
-    # replace all original &nbsp; chars ( \xa0 in unicode) to plain space chars:
-    res = res.replace(u'\xa0', u' ')
-    return res
