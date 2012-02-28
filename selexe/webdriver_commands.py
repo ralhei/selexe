@@ -1,7 +1,4 @@
-# -*- coding: iso-8859-1 -*-
-
 import logging, time, re, types
-
 ###
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.action_chains import ActionChains
@@ -14,30 +11,36 @@ from userfunctions import Userfunctions
 
 #globals
 # time until timeout in seconds
-TIME = 20
+TIMEOUT = 20
 
 def create_verify(func):
-    #return func
+    """
+    Decorator to convert a test method of class WebDriver (starting with 'wd_get*') into a Selenium
+    'verify*' function.
+    """
     def wrap_func(self, *args, **kw):
         res, val = func(self, *args, **kw)
-        verificationError = "Actual value \"" + str(res) + "\" did not match \"" + str(val) + "\""
         if matches(val, res):
             return True
         else:
-            logging.error(verificationError) 
+            verificationError = 'Value "%s" did not match "%s"' % (str(res), str(val))
+            logging.error(verificationError)
             self.verificationErrors.append(verificationError)
             return False
     return wrap_func
 
 
 def create_verifyNot(func):
-    #return func
+    """
+    Decorator to convert a test method of class WebDriver (starting with 'wd_get*') into a Selenium '
+    verifyNot*' function.
+    """
     def wrap_func(self, *args, **kw):
         res, val = func(self, *args, **kw)
-        verificationError = "Actual value \"" + str(res) + "\" did match \"" + str(val) + "\""
         if not matches(val, res):
             return True
-        else: 
+        else:
+            verificationError = 'Value "%s" did not match "%s"' % (str(res), str(val))
             logging.error(verificationError)
             self.verificationErrors.append(verificationError)
             return False
@@ -45,7 +48,10 @@ def create_verifyNot(func):
 
 
 def create_assert(func):
-    #return func
+    """
+    Decorator to convert a test method of class WebDriver (starting with 'wd_get*') into a Selenium
+    'assert*' function.
+    """
     def wrap_func(self, *args, **kw):
         res, val = func(self, *args, **kw)
         assert matches(val, res)
@@ -53,7 +59,10 @@ def create_assert(func):
 
 
 def create_assertNot(func):
-    #return func
+    """
+    Decorator to convert a test method of class WebDriver (starting with 'wd_get*') into a Selenium
+    'assertNot*' function.
+    """
     def wrap_func(self, *args, **kw):
         res, val = func(self, *args, **kw)
         assert not matches(val, res)
@@ -61,9 +70,12 @@ def create_assertNot(func):
 
 
 def create_waitFor(func):
-    #return func
+    """
+    Decorator to convert a test method of class WebDriver (starting with 'wd_get*') into a Selenium
+    'waitFor*' function.
+    """
     def wrap_func(self, *args, **kw):
-        for _i in range (TIME):
+        for i in range (TIMEOUT):
             try:
                 res, val = func(self, *args, **kw)
                 assert matches(val, res)
@@ -71,14 +83,17 @@ def create_waitFor(func):
             except AssertionError:
                 time.sleep(1)
         else:
-            raise RuntimeError("Timed out after " + str(TIME) + " seconds")
+            raise RuntimeError("Timed out after %d seconds" % TIMEOUT)
     return wrap_func
 
 
 def create_waitForNot(func):
-    #return func
+    """
+    Decorator to convert a test method of class WebDriver (starting with 'wd_get*') into a Selenium
+    'waitForNot*' function.
+    """
     def wrap_func(self, *args, **kw):
-        for _i in range (TIME):
+        for i in range (TIMEOUT):
             try:
                 res, val = func(self, *args, **kw)
                 assert not matches(val, res)
@@ -86,24 +101,34 @@ def create_waitForNot(func):
             except AssertionError:
                 time.sleep(1)
         else:
-            raise RuntimeError("Timed out after " + str(TIME) + " seconds")
+            raise RuntimeError("Timed out after %d seconds" % TIMEOUT)
     return wrap_func
 
 
 def create_store(func):
-    #return func
+    """
+    Decorator to convert a test method of class WebDriver (starting with 'wd_get*') into a Selenium
+    'store*' function.
+    """
     def wrap_func(self, *args, **kw):
         res, val = func(self, *args, **kw)
-        self.variables[val] = res
+        self.storedVariables[val] = res
     return wrap_func
 
 
 def create_additional_methods(cls):
+    """
+    A class decorator to apply all available wrapping decorators to those methods in class WebDriver
+    starting with 'wd_get*'
+    """
     PREFIX = 'wd_get'
     lstr = len(PREFIX)
     for method in cls.__dict__.keys():
         if method.startswith(PREFIX):
             postfix = method[lstr:]
+            #for sel_prefix in []:
+
+
             setattr(cls, 'wd_verify' + postfix, create_verify(cls.__dict__[method]))
             setattr(cls, 'wd_verifyNot' + postfix, create_verifyNot(cls.__dict__[method]))
             setattr(cls, 'wd_assert' + postfix, create_assert(cls.__dict__[method]))
@@ -113,7 +138,7 @@ def create_additional_methods(cls):
             setattr(cls, 'wd_store' + postfix, create_store(cls.__dict__[method]))
     return cls
 
-
+####################################################################################################
 
 @create_additional_methods
 class Webdriver(object):
@@ -122,42 +147,73 @@ class Webdriver(object):
         self.driver.implicitly_wait(3)
         self.base_url = base_url
         self.initVerificationErrors()
-        self.variables = {}
+        # 'storedVariables' is used through the 'create_store' decorator above to store values during a selenium run:
+        self.storedVariables = {}
         self.importUserFunctions()
-        # Action Chains will not work with several Firefox Versions
-        # Firefox Version 10.2 should be ok
+        # Action Chains will not work with several Firefox Versions. Firefox Version 10.2 should be ok.
         self.action = ActionChains(self.driver)
-       
 
     def initVerificationErrors(self):
+        """reset list of verification errors"""
         self.verificationErrors = []
 
     def getVerificationErrors(self):
+        """get (a copy) of all available verification errors so far"""
         return self.verificationErrors[:]  # return a copy!
 
     def __call__(self, command, target, value=None):
+        """Make an actual call to a selenium action method.
+        Examples for methods are 'verifyText', 'assertText', 'waitForText', etc., so methods that are
+        typically available in the selenium IDE.
+        Most methods are dynamically created through decorator functions (from 'wd_get*-methods) and hence are
+        dynamically looked up in the class dictionary.
+        """
         logging.info('%s("%s", "%s")' % (command, target, value))
         try:
             func = getattr(self, 'wd_'+command)
         except AttributeError:
             raise NotImplementedError('no proper function for sel command "%s" implemented' % command)
-        func(self.preprocess(target), self.preprocess(value))
+        v_target = self.expandVariables(target)
+        v_value  = self.expandVariables(value) if value else value
+        func(v_target, v_value)
         
     def importUserFunctions(self):
         funcNames = [key for (key, value) in Userfunctions.__dict__.iteritems() if isinstance(value, types.FunctionType)]
         usr = Userfunctions(self)
         for funcName in funcNames:
             setattr(self, funcName, getattr(usr, funcName))
-        
-        
+
+    sel_var_pat = re.compile(r'\$({\w+})')
+    def expandVariables(self, s):
+        """expand variables contained in selenese files
+        Multiple variables can be contained in a string from a selenese file. The format is ${<VARIABLENAME}.
+        In order to use Python's formatting functionality all that needs to be done is to remove
+        the dollar char from the curly braces as a preparational step. Then formatting is just done
+        by providing a dictionary with all currently stored variables.
+        """
+        s_no_dollars = self.sel_var_pat.sub(r'\1', s)
+        return s_no_dollars.format(**self.storedVariables)
+
+
     ########################################################################################################
-    # The actual translations from selenium-to-webdriver commands:
+    # The actual translations from selenium-to-webdriver commands
+
+    ###
+    # Section 1: Interactions with the browser
+    ###
 
     def wd_open(self, target, value=None):
-        print self.base_url + target
+        """open a URL in the browser
+        @param target: URL (string)
+        @param value: <not used>
+        """
         self.driver.get(self.base_url + target)
 
     def wd_clickAndWait(self, target, value=None):
+        """click onto a target (e.g. a button) and wait until the browser receives a new page
+        @param target: a string determining an element in the HTML page
+        @param value:  <not used>
+        """
         find_target(self.driver, target).click()
 
     def wd_click(self, target, value=None):
@@ -218,8 +274,39 @@ class Webdriver(object):
 
     def wd_mouseOut(self, target, value=None):
         self.action.move_by_offset(0, 0).perform()
-    
-    #### All get statements ####
+
+    def wd_waitForPopUp(self, target, value):
+        try:
+            _time = int(value)
+        except ValueError:
+            _time = TIMEOUT
+        if target in ("null", "0"):
+            raise NotImplementedError('"null" or "0" are currently not available as pop up locators')
+        for i in range(_time):
+            try:
+                self.driver.switch_to_window(target)
+                self.driver.switch_to_window(0)
+                break
+            except NoSuchWindowException:
+                time.sleep(1)
+        else:
+            raise NoSuchWindowException('timed out')
+
+    def wd_selectWindow(self, target, value):
+        ttype, ttarget = _tag_and_value(target)
+        if (ttype != 'name' and ttarget != 'null'):
+            raise NotImplementedError('only window locators with the prefix "name=" are supported currently')
+        if ttarget == "null":
+            ttarget = 0
+        self.driver.switch_to_window(ttarget)
+
+    def wd_selectFrame(self, target, value):
+        webElem = find_target(self.driver, target)
+        self.driver.switch_to_frame(webElem)
+
+    ###
+    # Section 2: All get*-statements (from which all other methods are created dynamically via decorators)
+    ###
 
     def wd_getTextPresent(self, target, value=None):
         if isContained(target, self.driver.page_source):
@@ -257,36 +344,6 @@ class Webdriver(object):
     def wd_getConfirmation(self, target, value=None):
         return self.wd_getAlert(target, value)
    
-    def wd_waitForPopUp(self, target, value):
-        try:
-            _time = int(value)
-        except ValueError:
-            _time = TIME
-        if target in ("null", "0"):
-            raise NotImplementedError('"null" or "0" are currently not available as pop up locators')
-        for i in range(_time):
-            try:
-                self.driver.switch_to_window(target)
-                self.driver.switch_to_window(0)
-                break
-            except NoSuchWindowException:
-                time.sleep(1)
-        else:
-            raise NoSuchWindowException('timed out')
-        
-            
-    def wd_selectWindow(self, target, value):
-        ttype, ttarget = _tag_and_value(target)
-        if (ttype != 'name' and ttarget != 'null'):
-            raise NotImplementedError('only window locators with the prefix "name=" are supported currently')
-        if ttarget == "null":
-            ttarget = 0
-        self.driver.switch_to_window(ttarget)
-        
-    def wd_selectFrame(self, target, value):
-        webElem = find_target(self.driver, target)
-        self.driver.switch_to_frame(webElem)
-         
     ##### Aliases ####
     
     def wd_verifyTextNotPresent(self, target, value=None):
@@ -301,32 +358,8 @@ class Webdriver(object):
     def wd_assertElementNotPresent(self, target, value=None):
         return self.wd_assertNotElementPresent(target, value)
     
-    ########################################################################################################
-    # Some helper methods
 
-    def preprocess(self, s):
-        '''
-        Variables have to be inserted and a few parser drawbacks have to be handled:
-        1) the parser does not decode html entitys
-        2) empty strings are given back as "None" by the parser so they have to be reverted
-        3) the return value of the parser is BeautifulSoup.BeautifulSoup.NavigableString so
-        so this has to be changed to a workable type (currently unicode)
-        '''
-        if not s:
-            s =""
-        else: 
-            s = unicode(s) 
-            s = self.htmlentitydecode(s)
-            s = self.insertVariables(s)                
-        return s
-    
-    def insertVariables(self, s):
-        for var in self.variables.keys():
-            s = s.replace("${" + var + "}", self.variables[var])
-        return s
-    
-    def htmlentitydecode(self, s):
-        return re.sub('&(%s);' % '|'.join(name2codepoint), lambda m: unichr(name2codepoint[m.group(1)]), s)
+########################################################################################################
 
 
 def _tag_and_value(tvalue):
