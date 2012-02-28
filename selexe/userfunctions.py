@@ -4,7 +4,7 @@ Created on 26.02.2012
 @author: Stephan Kienzle
 '''
 import httplib
-#from webdriver_commands import find_children, find_target, find_targets, matches, isContained, _tag_and_value
+from webdriver_commands import find_children, find_target, find_targets, matches, isContained, _tag_and_value
 
 class Userfunctions(object):
            
@@ -23,8 +23,10 @@ class Userfunctions(object):
     '''          
     def wd_putRest(self, target, value):
         connection =  httplib.HTTPConnection(self.base_url)
-        connection.request('PUT', target , value)
+        headers = {"Content-type": 'application/json'}
+        connection.request('PUT', target , value, headers)
         result = connection.getresponse()
+        print result
     '''
     Selenium.prototype.doDeleteRest = function(url) {
         this.browserbot.getUserWindow().jQuery.ajax({url: url, async: false,
@@ -59,7 +61,7 @@ class Userfunctions(object):
     '''
    
     def wd_getTextLength(self, target, value):
-        pass
+        return len(find_target(self.driver, target).text)
     
     '''
     Selenium.prototype.assertTextContainedInEachElement = function(locator, text) {

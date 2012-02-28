@@ -9,7 +9,6 @@ from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.common.alert import Alert
 from htmlentitydefs import name2codepoint
 from fnmatch import fnmatchcase as compare
-from fnmatch import translate
 from userfunctions import Userfunctions
 
 #globals
@@ -264,7 +263,7 @@ class Webdriver(object):
             _time = TIME
         if target in ("null", "0"):
             raise NotImplementedError('"null" or "0" are currently not available as pop up locators')
-        for i in range(_time):
+        for _i in range(_time):
             try:
                 self.driver.switch_to_window(target)
                 self.driver.switch_to_window(0)
@@ -416,7 +415,6 @@ def matches(pat, res):
 
 
 def isContained(pat, text):
-    pat = unicode(pat)
     # 1) regexp
     if re.match("regexp:", pat):
         try:
@@ -432,22 +430,25 @@ def isContained(pat, text):
         return re.search(pat, text) 
     
 def translateWilcardToRegex(wc):
+    # escape metacharacters not used in wildcards
     metacharacters = ['\\', '.', '$','|','+','(',')']
     for char in metacharacters:
         wc = wc.replace(char, '\\' + char)
+    # translate wildcard characters $ abd *
     wc = re.sub(r"(?<!\\)\*", r".*", wc)
     wc = re.sub(r"(?<!\\)\?", r".", wc)
+    # find brackets which should not be escaped
     nonEscapeBrackets = []
     for bracketPair in re.finditer(r"(?<!\\)\[[^\[]*?(?<!\\)\]", wc):
         nonEscapeBrackets.append(bracketPair.start())
         nonEscapeBrackets.append(bracketPair.end() - 1)
     newWc = ""
-    i = 0
+    pos = 0
     for c in wc:
-        if c in ['[',']'] and not i in nonEscapeBrackets:
+        if c in ['[',']'] and not pos in nonEscapeBrackets:
             c = "\\" + c
-        newWc = newWc + c
-        i+=1
+        newWc+=c
+        pos+=1
     return newWc
     
 
