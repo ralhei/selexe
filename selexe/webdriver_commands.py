@@ -187,12 +187,11 @@ class Webdriver(object):
     def expandVariables(self, s):
         """expand variables contained in selenese files
         Multiple variables can be contained in a string from a selenese file. The format is ${<VARIABLENAME}.
-        In order to use Python's formatting functionality all that needs to be done is to remove
-        the dollar char from the curly braces as a preparational step. Then formatting is just done
-        by providing a dictionary with all currently stored variables.
+        Those are replaced from self.storedVariables via a re.sub() method.
         """
-        s_no_dollars = self.sel_var_pat.sub(r'\1', s)
-        return s_no_dollars.format(**self.storedVariables)
+        #s_no_dollars = self.sel_var_pat.sub(r'\1', s)
+        #return s_no_dollars.format(**self.storedVariables)
+        return self.sel_var_pat.sub(lambda matchobj: self.storedVariables[matchobj.group(1)], s)
 
 
     ########################################################################################################
@@ -248,11 +247,10 @@ class Webdriver(object):
      
     def matchChildren(self, target, tvalue, method):
         for child in find_children(self.driver, target):
-            if self.matches(tvalue, res[method]):
+            if matches(tvalue, res[method]):
                 return res[method]
         return tvalue
-               
-        
+
     def wd_type(self, target, value):
         target_elem = find_target(self.driver, target)
         target_elem.clear()

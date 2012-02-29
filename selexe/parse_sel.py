@@ -14,8 +14,9 @@ class SeleniumParser(object):
         for tr in body.findAll('tr'):
             # return tuple (command, target, value) -> this corresponds to column names in Selenium IDE
             command, target, value = [td.text for td in tr.findAll('td')]
-            value = htmlentitydecode(value)
-            yield (command, target, value)
+            v_value = htmlentitydecode(value)
+            v_target = htmlentitydecode(target)
+            yield (command, v_target, v_value)
 
 
 
