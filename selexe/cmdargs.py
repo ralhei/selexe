@@ -1,6 +1,7 @@
 import sys, logging
 from optparse import OptionParser
 
+DEFAULT_FIXTURES_FILE = 'selexeFixtures.py'
 
 options = [
     (('--selexe',), dict(action='store_true', help="execute selenium tests directly from *.sel files")),
@@ -9,7 +10,7 @@ options = [
     (('--pmd',), dict(action='store_true', default=False, help='enable postmortem debugging')),
     (('--logging',), dict(action='store', default='info',
                          help='print verbose information about current test (debug, info, warning)')),
-    (('--fixtures', '-F'), dict(action='store', default=None,
+    (('--fixtures', '-F'), dict(action='store', default=DEFAULT_FIXTURES_FILE,
                                 help='python module containing setUp() or tearDown() fixture functions'))
     ]
 
