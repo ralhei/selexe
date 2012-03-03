@@ -1,15 +1,28 @@
 import logging, time, re, types
 ###
+from selenium.common.exceptions import NoSuchWindowException
+from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.action_chains import ActionChains
-from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.common.alert import Alert
-from fnmatch import fnmatchcase as compare
+from fnmatch import fnmatchcase as globmatchcase
 from userfunctions import Userfunctions
+from selenium.webdriver.remote.webelement import WebElement
 
 #globals
 # time until timeout in seconds
 TIMEOUT = 20
+
+def create_get(func):
+    """
+    Decorator to convert a test method of class WebDriver (starting with 'wd_get*') into a Selenium
+    'get*' function.
+    """
+    def wrap_func(self, *args, **kw):
+        reference, data = func(self, *args, **kw)
+        return data
+    return wrap_func
+
 
 def create_verify(func):
     """
@@ -17,11 +30,11 @@ def create_verify(func):
     'verify*' function.
     """
     def wrap_func(self, *args, **kw):
-        res, val = func(self, *args, **kw)
-        if matches(val, res):
+        reference, data = func(self, *args, **kw)
+        if matches(reference, data):
             return True
         else:
-            verificationError = 'Value "%s" did not match "%s"' % (str(res), str(val))
+            verificationError = 'Value "%s" did not match "%s"' % (str(data), str(reference))
             logging.error(verificationError)
             self.verificationErrors.append(verificationError)
             return False
@@ -34,11 +47,11 @@ def create_verifyNot(func):
     verifyNot*' function.
     """
     def wrap_func(self, *args, **kw):
-        res, val = func(self, *args, **kw)
-        if not matches(val, res):
+        reference, data = func(self, *args, **kw)
+        if not matches(reference, data):
             return True
         else:
-            verificationError = 'Value "%s" did not match "%s"' % (str(res), str(val))
+            verificationError = 'Value "%s" did not match "%s"' % (str(data), str(reference))
             logging.error(verificationError)
             self.verificationErrors.append(verificationError)
             return False
@@ -51,8 +64,8 @@ def create_assert(func):
     'assert*' function.
     """
     def wrap_func(self, *args, **kw):
-        res, val = func(self, *args, **kw)
-        assert matches(val, res)
+        reference, data = func(self, *args, **kw)
+        assert matches(reference, data)
     return wrap_func
 
 
@@ -62,8 +75,8 @@ def create_assertNot(func):
     'assertNot*' function.
     """
     def wrap_func(self, *args, **kw):
-        res, val = func(self, *args, **kw)
-        assert not matches(val, res)
+        reference, data = func(self, *args, **kw)
+        assert not matches(reference, data)
     return wrap_func
 
 
@@ -73,15 +86,16 @@ def create_waitFor(func):
     'waitFor*' function.
     """
     def wrap_func(self, *args, **kw):
-        for i in range (TIMEOUT):
+        timeout = kw.pop('timeout', TIMEOUT)
+        for i in range (timeout):
             try:
-                res, val = func(self, *args, **kw)
-                assert matches(val, res)
+                reference, data = func(self, *args, **kw)
+                assert matches(reference, data)
                 break
             except AssertionError:
                 time.sleep(1)
         else:
-            raise RuntimeError("Timed out after %d seconds" % TIMEOUT)
+            raise RuntimeError("Timed out after %d seconds" % timeout)
     return wrap_func
 
 
@@ -91,15 +105,16 @@ def create_waitForNot(func):
     'waitForNot*' function.
     """
     def wrap_func(self, *args, **kw):
-        for i in range (TIMEOUT):
+        timeout = kw.pop('timeout', TIMEOUT)
+        for i in range (timeout):
             try:
-                res, val = func(self, *args, **kw)
-                assert not matches(val, res)
+                reference, data = func(self, *args, **kw)
+                assert not matches(reference, data)
                 break
             except AssertionError:
                 time.sleep(1)
         else:
-            raise RuntimeError("Timed out after %d seconds" % TIMEOUT)
+            raise RuntimeError("Timed out after %d seconds" % timeout)
     return wrap_func
 
 
@@ -109,36 +124,40 @@ def create_store(func):
     'store*' function.
     """
     def wrap_func(self, *args, **kw):
-        res, val = func(self, *args, **kw)
-        self.storedVariables[val] = res
+        reference, data = func(self, *args, **kw)
+        self.storedVariables[reference] = data
     return wrap_func
 
 
-def create_additional_methods(cls):
+
+def create_selenium_methods(cls):
     """
-    A class decorator to apply all available wrapping decorators to those methods in class WebDriver
+    A class decorator to setup all available wrapping decorators to those methods in class WebDriver
     starting with 'wd_get*'
     """
-    PREFIX = 'wd_get'
+    PREFIX = 'wd_SEL_'
     lstr = len(PREFIX)
-    for method in cls.__dict__.keys():
-        if method.startswith(PREFIX):
-            postfix = method[lstr:]
-            #for sel_prefix in []:
 
+    def decorate_method(cls, methodName, prefix, decoratorFunc):
+        seleniumMethodName = prefix + methodName[lstr:]
+        wrappedMethod = decoratorFunc(cls.__dict__[methodName])
+        wrappedMethod.__name__ = seleniumMethodName
+        setattr(cls, seleniumMethodName, wrappedMethod)
 
-            setattr(cls, 'wd_verify' + postfix, create_verify(cls.__dict__[method]))
-            setattr(cls, 'wd_verifyNot' + postfix, create_verifyNot(cls.__dict__[method]))
-            setattr(cls, 'wd_assert' + postfix, create_assert(cls.__dict__[method]))
-            setattr(cls, 'wd_assertNot' + postfix, create_assertNot(cls.__dict__[method]))
-            setattr(cls, 'wd_waitFor' + postfix, create_waitFor(cls.__dict__[method]))
-            setattr(cls, 'wd_waitForNot' + postfix, create_waitForNot(cls.__dict__[method]))
-            setattr(cls, 'wd_store' + postfix, create_store(cls.__dict__[method]))
+    for methodName in cls.__dict__.keys():
+        if methodName.startswith(PREFIX):
+            decorate_method(cls, methodName, 'wd_get', create_get)
+            decorate_method(cls, methodName, 'wd_verify', create_verify)
+            decorate_method(cls, methodName, 'wd_assert', create_assert)
+            decorate_method(cls, methodName, 'wd_assertNot', create_assertNot)
+            decorate_method(cls, methodName, 'wd_waitFor', create_waitFor)
+            decorate_method(cls, methodName, 'wd_waitForNot', create_waitForNot)
+            decorate_method(cls, methodName, 'wd_store', create_store)
     return cls
 
 ####################################################################################################
 
-@create_additional_methods
+@create_selenium_methods
 class Webdriver(object):
     def __init__(self, driver, base_url):
         self.driver = driver
@@ -159,21 +178,21 @@ class Webdriver(object):
         """get (a copy) of all available verification errors so far"""
         return self.verificationErrors[:]  # return a copy!
 
-    def __call__(self, command, target, value=None):
+    def __call__(self, command, target, value=None, **kw):
         """Make an actual call to a selenium action method.
         Examples for methods are 'verifyText', 'assertText', 'waitForText', etc., so methods that are
         typically available in the selenium IDE.
         Most methods are dynamically created through decorator functions (from 'wd_get*-methods) and hence are
         dynamically looked up in the class dictionary.
         """
-        logging.info('%s("%s", "%s")' % (command, target, value))
+        logging.info('%s(%r, %r)' % (command, target, value))
         try:
             func = getattr(self, 'wd_'+command)
         except AttributeError:
             raise NotImplementedError('no proper function for sel command "%s" implemented' % command)
         v_target = self.expandVariables(target)
         v_value  = self.expandVariables(value) if value else value
-        func(v_target, v_value)
+        return func(v_target, v_value, **kw)
         
     def importUserFunctions(self):
         funcNames = [key for (key, value) in Userfunctions.__dict__.iteritems() if isinstance(value, types.FunctionType)]
@@ -185,12 +204,11 @@ class Webdriver(object):
     def expandVariables(self, s):
         """expand variables contained in selenese files
         Multiple variables can be contained in a string from a selenese file. The format is ${<VARIABLENAME}.
-        In order to use Python's formatting functionality all that needs to be done is to remove
-        the dollar char from the curly braces as a preparational step. Then formatting is just done
-        by providing a dictionary with all currently stored variables.
+        Those are replaced from self.storedVariables via a re.sub() method.
         """
-        s_no_dollars = self.sel_var_pat.sub(r'\1', s)
-        return s_no_dollars.format(**self.storedVariables)
+        #s_no_dollars = self.sel_var_pat.sub(r'\1', s)
+        #return s_no_dollars.format(**self.storedVariables)
+        return self.sel_var_pat.sub(lambda matchobj: self.storedVariables[matchobj.group(1)], s)
 
 
     ########################################################################################################
@@ -208,33 +226,39 @@ class Webdriver(object):
         self.driver.get(self.base_url + target)
 
     def wd_clickAndWait(self, target, value=None):
-        """click onto a target (e.g. a button) and wait until the browser receives a new page
+        """click onto a HTML target (e.g. a button) and wait until the browser receives a new page
         @param target: a string determining an element in the HTML page
         @param value:  <not used>
         """
         find_target(self.driver, target).click()
 
     def wd_click(self, target, value=None):
+        """Click onto a HTML target (e.g. a button)
+        @param target: a string determining an element in the HTML page
+        @param value:  <not used>
+        """
         find_target(self.driver, target).click()
     
     def wd_select(self, target, value):
-        target_elem = find_target(self.driver, target)
-        tag, tvalue = _tag_and_value(value)
-        select = Select(target_elem)
-        ''' 
+        """In HTML select list (specified by 'target') select item (specified by 'value')
+        'value' can have the following formats:
         label=labelPattern: matches options based on their labels, i.e. the visible text. (This is the default.)
-            label=regexp:^[Oo]ther
+            example: "label=regexp:^[Oo]ther"
         value=valuePattern: matches options based on their values.
-            value=other
+            example: "value=other"
         id=id: matches options based on their ids.
-            id=option1
+            example: "id=option1"
         index=index: matches an option based on its index (offset from zero).
-            index=2 '''
+            example: "index=2"
+        """
+        target_elem = find_target(self.driver, target)
+        tag, tvalue = tag_and_value(value)
+        select = Select(target_elem)
         if tag in ['label', None]:
-            tvalue = self.matchChildren(target, tvalue, "text")
+            tvalue = self.matchChildrenText(target, tvalue)
             select.select_by_visible_text(tvalue)
         elif tag == 'value':
-            tvalue = self.matchChildren(target, tvalue, "value")
+            tvalue = self.matchChildrenValue(target, tvalue)
             select.select_by_value(tvalue)
         elif tag == 'id':
             target_elem = find_target(value)
@@ -244,14 +268,25 @@ class Webdriver(object):
         else:
             raise RuntimeError("Unknown option locator type: " + tag)
      
-    def matchChildren(self, target, tvalue, method):
+    def matchChildrenText(self, target, tvalue):
         for child in find_children(self.driver, target):
-            if self.matches(tvalue, res[method]):
-                return res[method]
+            text = child.text
+            if matches(tvalue, text):
+                return text
         return tvalue
-               
-        
+    
+    def matchChildrenValue(self, target, tvalue):
+        for child in find_children(self.driver, target):
+            value = child.get_attribute("value")
+            if matches(tvalue, value):
+                return value
+        return tvalue
+
     def wd_type(self, target, value):
+        """Type text into a HTML input field
+        @param target: a string determining an input element in the HTML page
+        @param value:  text to type
+        """
         target_elem = find_target(self.driver, target)
         target_elem.clear()
         target_elem.send_keys(value)
@@ -291,7 +326,7 @@ class Webdriver(object):
             raise NoSuchWindowException('timed out')
 
     def wd_selectWindow(self, target, value):
-        ttype, ttarget = _tag_and_value(target)
+        ttype, ttarget = tag_and_value(target)
         if (ttype != 'name' and ttarget != 'null'):
             raise NotImplementedError('only window locators with the prefix "name=" are supported currently')
         if ttarget == "null":
@@ -303,43 +338,40 @@ class Webdriver(object):
         self.driver.switch_to_frame(webElem)
 
     ###
-    # Section 2: All get*-statements (from which all other methods are created dynamically via decorators)
+    # Section 2: All wd_SEL*-statements (from which all other methods are created dynamically via decorators)
     ###
 
-    def wd_getTextPresent(self, target, value=None):
-        if isContained(target, self.driver.page_source):
-            return "True", "True"
-        else: 
-            return "False", "True"
-        
-    def wd_getElementPresent(self, target, value=None):
+    def wd_SEL_TextPresent(self, target, value=None):
+        return True, isContained(target, self.driver.page_source)
+
+    def wd_SEL_ElementPresent(self, target, value=None):
         try:
             find_target(self.driver, target)
-            return "True", "True"
+            return True, True
         except NoSuchElementException:
-            return "False", "True"
+            return True, False
 
-    def wd_getAttribute(self, target, value):
-        target, _sep, attr = target.rpartition("@") 
-        return find_target(self.driver, target).get_attribute(attr), value
+    def wd_SEL_Attribute(self, target, value):
+        target, sep, attr = target.rpartition("@")
+        return value, find_target(self.driver, target).get_attribute(attr).strip()
         
-    def wd_getText(self, target, value):
-        return find_target(self.driver, target).text, value
+    def wd_SEL_Text(self, target, value):
+        return value, find_target(self.driver, target).text.strip()
         
-    def wd_getValue(self, target, value):
-        return find_target(self.driver, target).get_attribute("value"), value
+    def wd_SEL_Value(self, target, value):
+        return value, find_target(self.driver, target).get_attribute("value").strip()
     
-    def wd_getXpathCount(self, target, value):
+    def wd_SEL_XpathCount(self, target, value):
         count = len(find_targets(self.driver, target))
-        return str(count), value
+        return value, str(count)
 
-    def wd_getAlert(self, target, value=None):
+    def wd_SEL_Alert(self, target, value=None):
         alert = Alert(self.driver)
-        text = alert.text
+        text = alert.text.strip()
         alert.accept()
-        return text, target
+        return target, text
     
-    def wd_getConfirmation(self, target, value=None):
+    def wd_SEL_Confirmation(self, target, value=None):
         return self.wd_getAlert(target, value)
    
     ##### Aliases ####
@@ -360,7 +392,7 @@ class Webdriver(object):
 ########################################################################################################
 
 
-def _tag_and_value(tvalue):
+def tag_and_value(tvalue):
     # target can be e.g. "css=td.f_transfectionprotocol"
     s = tvalue.split('=', 1)
     tag, value = s if len(s) == 2 else (None, None)
@@ -373,7 +405,7 @@ def _tag_and_value(tvalue):
     return tag, value
 
 def find_target(driver, target):
-    ttype, ttarget = _tag_and_value(target)
+    ttype, ttarget = tag_and_value(target)
     if ttype == 'css':
         return driver.find_element_by_css_selector(ttarget)
     if ttype == 'xpath':
@@ -393,7 +425,7 @@ def find_target(driver, target):
         raise RuntimeError('no way to find target "%s"' % target)
 
 def find_targets(driver, target):
-    ttype, ttarget = _tag_and_value(target)
+    ttype, ttarget = tag_and_value(target)
     if ttype == 'css':
         return driver.find_elements_by_css_selector(ttarget)
     if ttype == 'xpath': 
@@ -407,7 +439,7 @@ def find_targets(driver, target):
     
 
 def find_children(driver, target):
-    ttype, ttarget = _tag_and_value(target)
+    ttype, ttarget = tag_and_value(target)
     if ttype == 'css':
         return driver.find_elements_by_css_selector(ttarget + ">*" )
     if ttype == 'xpath':
@@ -420,37 +452,44 @@ def find_children(driver, target):
         raise RuntimeError('no way to find targets "%s"' % target)
     
     
-def matches(pat, res):
-    # remove trailing whitespaces of result string to match IDE specifications
-    res = res.strip()
+def matches(reference, data):
+    """Try to match data found in HTML with reference data
+    @param reference: string containing the 'value' of a selenese command (can be plain text, regex, ...)
+    @param data: string obtained from HTML via 'target'
+    @result boolean
 
-    ''' This function handles the three kinds of String-match Patterns which Selenium defines.
+    This function handles the three kinds of String-match Patterns which Selenium defines.
     This is done in order to compare the pattern "pat" against "res".
-    1.) regexp: a regular expression
-    2.) exact: a non-wildcard expression
-    3.) glob: a (possible) wildcard expression. This is the standard
+    1) plain equality comparison
+    2) regexp: a regular expression
+    3) exact: a non-wildcard expression
+    4) glob: a (possible) wildcard expression. This is the default (fallback) method if 1) and 2) don't apply
     
     see: http://release.seleniumhq.org/selenium-remote-control/0.9.2/doc/dotnet/Selenium.html
-    '''
-    # 1) regexp
-    if re.match("regexp:", pat):
+    """
+    # 1) equality expression (works for booleans, integers, etc)
+    if type(reference) not in [str, unicode]:
+        return reference == data
+    # 2) regexp
+    elif reference.startswith('regexp:'):
         try:
-            return res == re.match(pat[7:], res).group(0)
+            return data == re.match(reference[7:], data).group(0)
         except AttributeError:
             return False
-    # 2) exact
-    elif re.match("exact:", pat):
-        return res == pat[6:] 
-    # 3) glob
+    # 3) exact-tag:
+    elif re.match("exact:", reference):
+        return data == reference[6:]
+    # 4) glob/wildcards
     else:
-        return compare(res, pat)  # using the "fnmatch" module method "fnmatchcase" in order to handle wildcards.
+        # using the "fnmatch" module method "fnmatchcase" (aliased to globmatchcase) in order to handle wildcards.
+        return globmatchcase(data, reference)
 
 
 def isContained(pat, text):
     # 1) regexp
-    if re.match("regexp:", pat):
+    if pat.startswith('regex:'):
         try:
-            return re.search(pat[7:], text).group(0)
+            return text == re.search(pat[7:], text).group(0)
         except AttributeError:
             return False
     # 2) exact
@@ -459,7 +498,7 @@ def isContained(pat, text):
     # 3) glob
     else:
         pat = translateWilcardToRegex(pat)
-        return re.search(pat, text) 
+        return re.search(pat, text) is not None
     
 def translateWilcardToRegex(wc):
     # escape metacharacters not used in wildcards
