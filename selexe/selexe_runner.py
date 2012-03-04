@@ -109,5 +109,5 @@ if __name__ == '__main__':
         s = SelexeRunner(selFilename, baseuri=options.baseuri, pmd=options.pmd, fixtures=options.fixtures)
         res = s.run()
         if res:
-            sys.stderr.write("\nError in %s: %s\n" % selFilename, res)
+            sys.stderr.write("\nVerification error in %s: %s\n" % (selFilename, res))
             sys.exit(1)

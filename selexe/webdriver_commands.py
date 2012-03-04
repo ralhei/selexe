@@ -1,17 +1,19 @@
-import logging, time, re, types
+import logging, time, re, types, sys
 ###
 from selenium.common.exceptions import NoSuchWindowException
 from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoAlertPresentException
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.alert import Alert
 from fnmatch import fnmatchcase as globmatchcase
 from userfunctions import Userfunctions
-from selenium.webdriver.remote.webelement import WebElement
 
 #globals
-# time until timeout in seconds
-TIMEOUT = 20
+# time until timeout in milliseconds
+TIMEOUT = 20000
+
+
 
 def create_get(func):
     """
@@ -30,14 +32,20 @@ def create_verify(func):
     'verify*' function.
     """
     def wrap_func(self, *args, **kw):
-        reference, data = func(self, *args, **kw)
-        if matches(reference, data):
+        try:
+            reference, data = func(self, *args, **kw)
+            assert matches(reference, data)
             return True
-        else:
-            verificationError = 'Value "%s" did not match "%s"' % (str(data), str(reference))
-            logging.error(verificationError)
-            self.verificationErrors.append(verificationError)
-            return False
+        except NoAlertPresentException:
+            verificationError = "There were no alerts or confirmations"
+        except AssertionError:
+            if data == False:
+                verificationError = "false"
+            else:
+                verificationError = 'Actual value "%s" did not match "%s"' % (str(data), str(reference))
+        logging.error(verificationError)
+        self.verificationErrors.append(verificationError)        
+        return False
     return wrap_func
 
 
@@ -47,14 +55,20 @@ def create_verifyNot(func):
     verifyNot*' function.
     """
     def wrap_func(self, *args, **kw):
-        reference, data = func(self, *args, **kw)
-        if not matches(reference, data):
+        try:
+            reference, data = func(self, *args, **kw)
+            assert not matches(reference, data)
             return True
-        else:
-            verificationError = 'Value "%s" did not match "%s"' % (str(data), str(reference))
-            logging.error(verificationError)
-            self.verificationErrors.append(verificationError)
-            return False
+        except NoAlertPresentException:
+            verificationError = "There were no alerts or confirmations"
+        except AssertionError:
+            if data == False:
+                verificationError = "false"
+            else:
+                verificationError = 'Actual value "%s" did match "%s"' % (str(data), str(reference))
+        logging.error(verificationError)
+        self.verificationErrors.append(verificationError)        
+        return False
     return wrap_func
 
 
@@ -87,7 +101,7 @@ def create_waitFor(func):
     """
     def wrap_func(self, *args, **kw):
         timeout = kw.pop('timeout', TIMEOUT)
-        for i in range (timeout):
+        for i in range (timeout / 1000):
             try:
                 reference, data = func(self, *args, **kw)
                 assert matches(reference, data)
@@ -95,7 +109,7 @@ def create_waitFor(func):
             except AssertionError:
                 time.sleep(1)
         else:
-            raise RuntimeError("Timed out after %d seconds" % timeout)
+            raise RuntimeError("Timed out after %d ms" % timeout)
     return wrap_func
 
 
@@ -106,7 +120,7 @@ def create_waitForNot(func):
     """
     def wrap_func(self, *args, **kw):
         timeout = kw.pop('timeout', TIMEOUT)
-        for i in range (timeout):
+        for i in range (timeout / 1000):
             try:
                 reference, data = func(self, *args, **kw)
                 assert not matches(reference, data)
@@ -114,7 +128,7 @@ def create_waitForNot(func):
             except AssertionError:
                 time.sleep(1)
         else:
-            raise RuntimeError("Timed out after %d seconds" % timeout)
+            raise RuntimeError("Timed out after %d ms" % timeout)
     return wrap_func
 
 
@@ -125,6 +139,7 @@ def create_store(func):
     """
     def wrap_func(self, *args, **kw):
         reference, data = func(self, *args, **kw)
+        assert data
         self.storedVariables[reference] = data
     return wrap_func
 
@@ -148,6 +163,7 @@ def create_selenium_methods(cls):
         if methodName.startswith(PREFIX):
             decorate_method(cls, methodName, 'wd_get', create_get)
             decorate_method(cls, methodName, 'wd_verify', create_verify)
+            decorate_method(cls, methodName, 'wd_verifyNot', create_verifyNot)
             decorate_method(cls, methodName, 'wd_assert', create_assert)
             decorate_method(cls, methodName, 'wd_assertNot', create_assertNot)
             decorate_method(cls, methodName, 'wd_waitFor', create_waitFor)
@@ -169,7 +185,7 @@ class Webdriver(object):
         self.importUserFunctions()
         # Action Chains will not work with several Firefox Versions. Firefox Version 10.2 should be ok.
         self.action = ActionChains(self.driver)
-
+        
     def initVerificationErrors(self):
         """reset list of verification errors"""
         self.verificationErrors = []
@@ -193,6 +209,7 @@ class Webdriver(object):
         v_target = self.expandVariables(target)
         v_value  = self.expandVariables(value) if value else value
         return func(v_target, v_value, **kw)
+                
         
     def importUserFunctions(self):
         funcNames = [key for (key, value) in Userfunctions.__dict__.iteritems() if isinstance(value, types.FunctionType)]
@@ -315,7 +332,7 @@ class Webdriver(object):
             timeout = TIMEOUT
         if target in ("null", "0"):
             raise NotImplementedError('"null" or "0" are currently not available as pop up locators')
-        for i in range(timeout):
+        for i in range(timeout / 1000):
             try:
                 self.driver.switch_to_window(target)
                 self.driver.switch_to_window(0)
@@ -323,7 +340,7 @@ class Webdriver(object):
             except NoSuchWindowException:
                 time.sleep(1)
         else:
-            raise NoSuchWindowException('timed out')
+            raise NoSuchWindowException("Timed out after %d ms" % timeout)
 
     def wd_selectWindow(self, target, value):
         ttype, ttarget = tag_and_value(target)
@@ -368,11 +385,15 @@ class Webdriver(object):
     def wd_SEL_Alert(self, target, value=None):
         alert = Alert(self.driver)
         text = alert.text.strip()
+        # the following error is catches to emulate the behavior of the IDE
+        # If there is no alert it just logs it.   
         alert.accept()
         return target, text
-    
+            
     def wd_SEL_Confirmation(self, target, value=None):
-        return self.wd_getAlert(target, value)
+        # Webdriver gives no opportunity to distinguish between alerts and confirmations.
+        # Thus they are handled the same way here, although this does not reflect the exact behavior of the IDE
+        return self.wd_SEL_Alert(target, value)
    
     ##### Aliases ####
     
@@ -382,12 +403,17 @@ class Webdriver(object):
     def wd_assertTextNotPresent(self, target, value=None):
         return self.wd_assertNotTextPresent(target, value)
     
+    def wd_waitForTextNotPresent(self, target, value=None):
+        return self.wd_waitForNotTextPresent(target, value)
+    
     def wd_verifyElementNotPresent(self, target, value=None):
         return self.wd_verifyNotElementPresent(target, value)
     
     def wd_assertElementNotPresent(self, target, value=None):
         return self.wd_assertNotElementPresent(target, value)
     
+    def wd_waitForElementNotPresent(self, target, value=None):
+        return self.wd_waitForNotElementPresent(target, value)
 
 ########################################################################################################
 
@@ -403,6 +429,7 @@ def tag_and_value(tvalue):
         if tvalue.startswith('//'):
             tag = 'xpath'
     return tag, value
+
 
 def find_target(driver, target):
     ttype, ttarget = tag_and_value(target)
@@ -477,10 +504,12 @@ def matches(reference, data):
         except AttributeError:
             return False
     # 3) exact-tag:
-    elif re.match("exact:", reference):
+    elif reference.startswith("exact:"):
         return data == reference[6:]
-    # 4) glob/wildcards
+    # 4) glob/ wildcards
     else:
+        if reference.startswith("glob:"):
+            reference = reference[5:]
         # using the "fnmatch" module method "fnmatchcase" (aliased to globmatchcase) in order to handle wildcards.
         return globmatchcase(data, reference)
 
@@ -492,35 +521,25 @@ def isContained(pat, text):
             return text == re.search(pat[7:], text).group(0)
         except AttributeError:
             return False
-    # 2) exact
-    elif re.match("exact:", pat):
+    # 2) exact-tag:
+    elif pat.startswith("exact:"):
         return pat[6:] in text
-    # 3) glob
+    # 3) glob/ wildcards
     else:
+        if pat.startswith("glob:"):
+            pat = pat[5:]
         pat = translateWilcardToRegex(pat)
         return re.search(pat, text) is not None
     
 def translateWilcardToRegex(wc):
+    # !note: The IDE wildcards do not include [...] expressions.
     # escape metacharacters not used in wildcards
-    metacharacters = ['\\', '.', '$','|','+','(',')']
+    metacharacters = ['\\', '.', '$','|','+','(',')', '[', ']']
     for char in metacharacters:
         wc = wc.replace(char, '\\' + char)
     # translate wildcard characters $ and *
     wc = re.sub(r"(?<!\\)\*", r".*", wc)
     wc = re.sub(r"(?<!\\)\?", r".", wc)
-    # find brackets which should not be escaped
-    nonEscapeBrackets = []
-    for bracketPair in re.finditer(r"(?<!\\)\[[^\[]*?(?<!\\)\]", wc):
-        nonEscapeBrackets.append(bracketPair.start())
-        nonEscapeBrackets.append(bracketPair.end() - 1)
-    # escape brackets 
-    newWc = ""
-    pos = 0
-    for c in wc:
-        if c in ['[',']'] and not pos in nonEscapeBrackets:
-            c = "\\" + c
-        newWc+=c
-        pos+=1
-    return newWc
+    return wc
     
 
