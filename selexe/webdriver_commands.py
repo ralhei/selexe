@@ -1,4 +1,4 @@
-import logging, time, re, types, sys
+import logging, time, re, types
 ###
 from selenium.common.exceptions import NoSuchWindowException
 from selenium.common.exceptions import NoSuchElementException
@@ -34,7 +34,7 @@ def create_verify(func):
     def wrap_func(self, *args, **kw):
         try:
             reference, data = func(self, *args, **kw)
-            assert matches(reference, data)
+            assert self.matches(reference, data)
             return True
         except NoAlertPresentException:
             verificationError = "There were no alerts or confirmations"
@@ -57,13 +57,13 @@ def create_verifyNot(func):
     def wrap_func(self, *args, **kw):
         try:
             reference, data = func(self, *args, **kw)
-            assert not matches(reference, data)
+            assert not self.matches(reference, data)
             return True
         except NoAlertPresentException:
             verificationError = "There were no alerts or confirmations"
         except AssertionError:
-            if data == False:
-                verificationError = "false"
+            if data == True:
+                verificationError = "true"
             else:
                 verificationError = 'Actual value "%s" did match "%s"' % (str(data), str(reference))
         logging.error(verificationError)
@@ -79,7 +79,7 @@ def create_assert(func):
     """
     def wrap_func(self, *args, **kw):
         reference, data = func(self, *args, **kw)
-        assert matches(reference, data)
+        assert self.matches(reference, data)
     return wrap_func
 
 
@@ -90,7 +90,7 @@ def create_assertNot(func):
     """
     def wrap_func(self, *args, **kw):
         reference, data = func(self, *args, **kw)
-        assert not matches(reference, data)
+        assert not self.matches(reference, data)
     return wrap_func
 
 
@@ -104,7 +104,7 @@ def create_waitFor(func):
         for i in range (timeout / 1000):
             try:
                 reference, data = func(self, *args, **kw)
-                assert matches(reference, data)
+                assert self.matches(reference, data)
                 break
             except AssertionError:
                 time.sleep(1)
@@ -123,7 +123,7 @@ def create_waitForNot(func):
         for i in range (timeout / 1000):
             try:
                 reference, data = func(self, *args, **kw)
-                assert not matches(reference, data)
+                assert not self.matches(reference, data)
                 break
             except AssertionError:
                 time.sleep(1)
@@ -177,12 +177,12 @@ def create_selenium_methods(cls):
 class Webdriver(object):
     def __init__(self, driver, base_url):
         self.driver = driver
-        self.driver.implicitly_wait(3)
+        self.driver.implicitly_wait(1)
         self.base_url = base_url
         self.initVerificationErrors()
+        self.importUserFunctions()
         # 'storedVariables' is used through the 'create_store' decorator above to store values during a selenium run:
         self.storedVariables = {}
-        self.importUserFunctions()
         # Action Chains will not work with several Firefox Versions. Firefox Version 10.2 should be ok.
         self.action = ActionChains(self.driver)
         
@@ -210,7 +210,7 @@ class Webdriver(object):
         v_value  = self.expandVariables(value) if value else value
         return func(v_target, v_value, **kw)
                 
-        
+                
     def importUserFunctions(self):
         funcNames = [key for (key, value) in Userfunctions.__dict__.iteritems() if isinstance(value, types.FunctionType)]
         usr = Userfunctions(self)
@@ -247,14 +247,14 @@ class Webdriver(object):
         @param target: a string determining an element in the HTML page
         @param value:  <not used>
         """
-        find_target(self.driver, target).click()
+        self.find_target(target).click()
 
     def wd_click(self, target, value=None):
         """Click onto a HTML target (e.g. a button)
         @param target: a string determining an element in the HTML page
         @param value:  <not used>
         """
-        find_target(self.driver, target).click()
+        self.find_target(target).click()
     
     def wd_select(self, target, value):
         """In HTML select list (specified by 'target') select item (specified by 'value')
@@ -268,8 +268,8 @@ class Webdriver(object):
         index=index: matches an option based on its index (offset from zero).
             example: "index=2"
         """
-        target_elem = find_target(self.driver, target)
-        tag, tvalue = tag_and_value(value)
+        target_elem = self.find_target(target)
+        tag, tvalue = self.tag_and_value(value)
         select = Select(target_elem)
         if tag in ['label', None]:
             tvalue = self.matchChildrenText(target, tvalue)
@@ -278,7 +278,7 @@ class Webdriver(object):
             tvalue = self.matchChildrenValue(target, tvalue)
             select.select_by_value(tvalue)
         elif tag == 'id':
-            target_elem = find_target(value)
+            target_elem = self.find_target(value)
             select.select_by_visible_text(target_elem.text)
         elif tag == 'index':
             select.select_by_index(int(tvalue))
@@ -286,16 +286,16 @@ class Webdriver(object):
             raise RuntimeError("Unknown option locator type: " + tag)
      
     def matchChildrenText(self, target, tvalue):
-        for child in find_children(self.driver, target):
+        for child in self.find_children(target):
             text = child.text
-            if matches(tvalue, text):
+            if self.matches(tvalue, text):
                 return text
         return tvalue
     
     def matchChildrenValue(self, target, tvalue):
-        for child in find_children(self.driver, target):
+        for child in self.find_children(target):
             value = child.get_attribute("value")
-            if matches(tvalue, value):
+            if self.matches(tvalue, value):
                 return value
         return tvalue
 
@@ -304,22 +304,22 @@ class Webdriver(object):
         @param target: a string determining an input element in the HTML page
         @param value:  text to type
         """
-        target_elem = find_target(self.driver, target)
+        target_elem = self.find_target(self.driver, target)
         target_elem.clear()
         target_elem.send_keys(value)
         
     def wd_check(self, target, value=None):
-        target_elem = find_target(self.driver, target)
+        target_elem = self.find_target(target)
         if not target_elem.is_selected():
             target_elem.click()
     
     def wd_uncheck(self, target, value=None):
-        target_elem = find_target(self.driver, target)
+        target_elem = self.find_target(target)
         if target_elem.is_selected():
             target_elem.click()
     
     def wd_mouseOver(self, target, value=None):
-        target_elem = find_target(self.driver, target)
+        target_elem = self.find_target(target)
         self.action.move_to_element(target_elem).perform()
 
     def wd_mouseOut(self, target, value=None):
@@ -343,7 +343,7 @@ class Webdriver(object):
             raise NoSuchWindowException("Timed out after %d ms" % timeout)
 
     def wd_selectWindow(self, target, value):
-        ttype, ttarget = tag_and_value(target)
+        ttype, ttarget = self.tag_and_value(target)
         if (ttype != 'name' and ttarget != 'null'):
             raise NotImplementedError('only window locators with the prefix "name=" are supported currently')
         if ttarget == "null":
@@ -351,7 +351,7 @@ class Webdriver(object):
         self.driver.switch_to_window(ttarget)
 
     def wd_selectFrame(self, target, value):
-        webElem = find_target(self.driver, target)
+        webElem = self.find_target(target)
         self.driver.switch_to_frame(webElem)
 
     ###
@@ -359,34 +359,32 @@ class Webdriver(object):
     ###
 
     def wd_SEL_TextPresent(self, target, value=None):
-        return True, isContained(target, self.driver.page_source)
+        return True, self.isContained(target, self.driver.page_source)
 
     def wd_SEL_ElementPresent(self, target, value=None):
         try:
-            find_target(self.driver, target)
+            self.find_target(target)
             return True, True
         except NoSuchElementException:
             return True, False
 
     def wd_SEL_Attribute(self, target, value):
         target, sep, attr = target.rpartition("@")
-        return value, find_target(self.driver, target).get_attribute(attr).strip()
+        return value, self.find_target(target).get_attribute(attr).strip()
         
     def wd_SEL_Text(self, target, value):
-        return value, find_target(self.driver, target).text.strip()
+        return value, self.find_target(target).text.strip()
         
     def wd_SEL_Value(self, target, value):
-        return value, find_target(self.driver, target).get_attribute("value").strip()
+        return value, self.find_target(target).get_attribute("value").strip()
     
     def wd_SEL_XpathCount(self, target, value):
-        count = len(find_targets(self.driver, target))
+        count = len(self.find_targets(target))
         return value, str(count)
 
     def wd_SEL_Alert(self, target, value=None):
         alert = Alert(self.driver)
-        text = alert.text.strip()
-        # the following error is catches to emulate the behavior of the IDE
-        # If there is no alert it just logs it.   
+        text = alert.text.strip() 
         alert.accept()
         return target, text
             
@@ -414,132 +412,132 @@ class Webdriver(object):
     
     def wd_waitForElementNotPresent(self, target, value=None):
         return self.wd_waitForNotElementPresent(target, value)
-
-########################################################################################################
-
-
-def tag_and_value(tvalue):
-    # target can be e.g. "css=td.f_transfectionprotocol"
-    s = tvalue.split('=', 1)
-    tag, value = s if len(s) == 2 else (None, None)
-    if not tag in ['css', 'id', 'name', 'link', 'label', "value", "index"]:
-        # Older sel files do not specify a 'css' or 'id' prefix. Lets distinguish by inspecting 'target'
-        # NOTE: This check is probably not complete here!!! Watch out for problems!!!
-        value = tvalue
-        if tvalue.startswith('//'):
-            tag = 'xpath'
-    return tag, value
-
-
-def find_target(driver, target):
-    ttype, ttarget = tag_and_value(target)
-    if ttype == 'css':
-        return driver.find_element_by_css_selector(ttarget)
-    if ttype == 'xpath':
-        return driver.find_element_by_xpath(ttarget)
-    elif ttype == 'id':
-        return driver.find_element_by_id(ttarget)
-    elif ttype == 'name':
-        return driver.find_element_by_name(ttarget)
-    elif ttype == 'link':
-        return driver.find_element_by_link_text(ttarget)
-    elif ttype == None:
-        try:
-            return driver.find_element_by_id(ttarget)
-        except:
-            return driver.find_element_by_name(ttarget) 
-    else:
-        raise RuntimeError('no way to find target "%s"' % target)
-
-def find_targets(driver, target):
-    ttype, ttarget = tag_and_value(target)
-    if ttype == 'css':
-        return driver.find_elements_by_css_selector(ttarget)
-    if ttype == 'xpath': 
-        return driver.find_elements_by_xpath(ttarget)
-    elif ttype == 'name':
-        return driver.find_elements_by_name(ttarget)
-    elif ttype == 'link':
-        return driver.find_elements_by_link_text(ttarget)
-    else:
-        raise RuntimeError('no way to find targets "%s"' % target)
     
+        ################# Some helper Functions ##################
 
-def find_children(driver, target):
-    ttype, ttarget = tag_and_value(target)
-    if ttype == 'css':
-        return driver.find_elements_by_css_selector(ttarget + ">*" )
-    if ttype == 'xpath':
-        return driver.find_elements_by_xpath(ttarget + "/*")
-    elif ttype == 'name':
-        return driver.find_elements_by_xpath("//*[@name='" + ttarget + "']//*")
-    elif ttype in ['id', None]:
-        return driver.find_elements_by_xpath("//" + ttarget + "/*")
-    else:
-        raise RuntimeError('no way to find targets "%s"' % target)
+
+    def tag_and_value(self, tvalue):
+        # target can be e.g. "css=td.f_transfectionprotocol"
+        s = tvalue.split('=', 1)
+        tag, value = s if len(s) == 2 else (None, None)
+        if not tag in ['css', 'id', 'name', 'link', 'label', "value", "index"]:
+            # Older sel files do not specify a 'css' or 'id' prefix. Lets distinguish by inspecting 'target'
+            # NOTE: This check is probably not complete here!!! Watch out for problems!!!
+            value = tvalue
+            if tvalue.startswith('//'):
+                tag = 'xpath'
+        return tag, value
     
     
-def matches(reference, data):
-    """Try to match data found in HTML with reference data
-    @param reference: string containing the 'value' of a selenese command (can be plain text, regex, ...)
-    @param data: string obtained from HTML via 'target'
-    @result boolean
-
-    This function handles the three kinds of String-match Patterns which Selenium defines.
-    This is done in order to compare the pattern "pat" against "res".
-    1) plain equality comparison
-    2) regexp: a regular expression
-    3) exact: a non-wildcard expression
-    4) glob: a (possible) wildcard expression. This is the default (fallback) method if 1) and 2) don't apply
+    def find_target(self, target):
+        ttype, ttarget = self.tag_and_value(target)
+        if ttype == 'css':
+            return self.driver.find_element_by_css_selector(ttarget)
+        if ttype == 'xpath':
+            return self.driver.find_element_by_xpath(ttarget)
+        elif ttype == 'id':
+            return self.driver.find_element_by_id(ttarget)
+        elif ttype == 'name':
+            return self.driver.find_element_by_name(ttarget)
+        elif ttype == 'link':
+            return self.driver.find_element_by_link_text(ttarget)
+        elif ttype == None:
+            try:
+                return self.driver.find_element_by_id(ttarget)
+            except:
+                return self.driver.find_element_by_name(ttarget) 
+        else:
+            raise RuntimeError('no way to find target "%s"' % target)
     
-    see: http://release.seleniumhq.org/selenium-remote-control/0.9.2/doc/dotnet/Selenium.html
-    """
-    # 1) equality expression (works for booleans, integers, etc)
-    if type(reference) not in [str, unicode]:
-        return reference == data
-    # 2) regexp
-    elif reference.startswith('regexp:'):
-        try:
-            return data == re.match(reference[7:], data).group(0)
-        except AttributeError:
-            return False
-    # 3) exact-tag:
-    elif reference.startswith("exact:"):
-        return data == reference[6:]
-    # 4) glob/ wildcards
-    else:
-        if reference.startswith("glob:"):
-            reference = reference[5:]
-        # using the "fnmatch" module method "fnmatchcase" (aliased to globmatchcase) in order to handle wildcards.
-        return globmatchcase(data, reference)
-
-
-def isContained(pat, text):
-    # 1) regexp
-    if pat.startswith('regex:'):
-        try:
-            return text == re.search(pat[7:], text).group(0)
-        except AttributeError:
-            return False
-    # 2) exact-tag:
-    elif pat.startswith("exact:"):
-        return pat[6:] in text
-    # 3) glob/ wildcards
-    else:
-        if pat.startswith("glob:"):
-            pat = pat[5:]
-        pat = translateWilcardToRegex(pat)
-        return re.search(pat, text) is not None
+    def find_targets(self, target):
+        ttype, ttarget = self.tag_and_value(target)
+        if ttype == 'css':
+            return self.driver.find_elements_by_css_selector(ttarget)
+        elif ttype == 'xpath': 
+            return self.driver.find_elements_by_xpath(ttarget)
+        elif ttype == 'name':
+            return self.driver.find_elements_by_name(ttarget)
+        elif ttype == 'link':
+            return self.driver.find_elements_by_link_text(ttarget)
+        else:
+            raise RuntimeError('no way to find targets "%s"' % target)
+        
     
-def translateWilcardToRegex(wc):
-    # !note: The IDE wildcards do not include [...] expressions.
-    # escape metacharacters not used in wildcards
-    metacharacters = ['\\', '.', '$','|','+','(',')', '[', ']']
-    for char in metacharacters:
-        wc = wc.replace(char, '\\' + char)
-    # translate wildcard characters $ and *
-    wc = re.sub(r"(?<!\\)\*", r".*", wc)
-    wc = re.sub(r"(?<!\\)\?", r".", wc)
-    return wc
+    def find_children(self, target):
+        ttype, ttarget = self.tag_and_value(target)
+        if ttype == 'css':
+            return self.driver.find_elements_by_css_selector(ttarget + ">*" )
+        elif ttype == 'xpath':
+            return self.driver.find_elements_by_xpath(ttarget + "/*")
+        elif ttype == 'name':
+            return self.driver.find_elements_by_xpath("//*[@name='" + ttarget + "']//*")
+        elif ttype in ['id', None]:
+            return self.driver.find_elements_by_xpath("//" + ttarget + "/*")
+        else:
+            raise RuntimeError('no way to find targets "%s"' % target)
+        
+        
+    def matches(self, reference, data):
+        """Try to match data found in HTML with reference data
+        @param reference: string containing the 'value' of a selenese command (can be plain text, regex, ...)
+        @param data: string obtained from HTML via 'target'
+        @result boolean
     
-
+        This function handles the three kinds of String-match Patterns which Selenium defines.
+        This is done in order to compare the pattern "pat" against "res".
+        1) plain equality comparison
+        2) regexp: a regular expression
+        3) exact: a non-wildcard expression
+        4) glob: a (possible) wildcard expression. This is the default (fallback) method if 1) and 2) don't apply
+        
+        see: http://release.seleniumhq.org/selenium-remote-control/0.9.2/doc/dotnet/Selenium.html
+        """
+        # 1) equality expression (works for booleans, integers, etc)
+        if type(reference) not in [str, unicode]:
+            return reference == data
+        # 2) regexp
+        elif reference.startswith('regexp:'):
+            try:
+                return data == re.match(reference[7:], data).group(0)
+            except AttributeError:
+                return False
+        # 3) exact-tag:
+        elif reference.startswith("exact:"):
+            return data == reference[6:]
+        # 4) glob/ wildcards
+        else:
+            if reference.startswith("glob:"):
+                reference = reference[5:]
+            # using the "fnmatch" module method "fnmatchcase" (aliased to globmatchcase) in order to handle wildcards.
+            return globmatchcase(data, reference)
+    
+    
+    def isContained(self, pat, text):
+        # 1) regexp
+        if pat.startswith('regex:'):
+            try:
+                return text == re.search(pat[7:], text).group(0)
+            except AttributeError:
+                return False
+        # 2) exact-tag:
+        elif pat.startswith("exact:"):
+            return pat[6:] in text
+        # 3) glob/ wildcards
+        else:
+            if pat.startswith("glob:"):
+                pat = pat[5:]
+            pat = self.translateWilcardToRegex(pat)
+            return re.search(pat, text) is not None
+        
+    def translateWilcardToRegex(self, wc):
+        # !note: The IDE wildcards do not include [...] expressions.
+        # escape metacharacters not used in wildcards
+        metacharacters = ['\\', '.', '$','|','+','(',')', '[', ']']
+        for char in metacharacters:
+            wc = wc.replace(char, '\\' + char)
+        # translate wildcard characters $ and *
+        wc = re.sub(r"(?<!\\)\*", r".*", wc)
+        wc = re.sub(r"(?<!\\)\?", r".", wc)
+        return wc
+    
+    

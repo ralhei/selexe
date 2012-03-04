@@ -3,15 +3,13 @@ Created on 26.02.2012
 
 @author: Stephan Kienzle
 """
-import httplib
-#from webdriver_commands import find_children, find_target, find_targets, matches, isContained, _tag_and_value
-
+import httplib, json
 
 class Userfunctions(object):
            
-    def __init__(self, driver):
-        self.driver = driver
-        self.base_url = driver.base_url
+    def __init__(self, selenium_commands):
+        self.commands = selenium_commands
+        self.base_url = self.commands.base_url
         if "http://" in self.base_url:
             self.base_url = self.base_url[7:] 
            
@@ -26,7 +24,7 @@ class Userfunctions(object):
         connection = httplib.HTTPConnection(self.base_url)
         headers = {"Content-type": 'application/json'}
         connection.request('PUT', target , value, headers)
-        result = connection.getresponse()
+        assert connection.getresponse() == 200
 
 
     def wd_deleteRest(self, target, value):
@@ -36,7 +34,9 @@ class Userfunctions(object):
             type: 'delete'});
         };
         """
-        pass
+        connection = httplib.HTTPConnection(self.base_url)
+        connection.request('DELETE', target)
+        assert connection.getresponse() == 200
         
     def wd_assertGetRest(self, target, value):
         """  
@@ -46,24 +46,22 @@ class Userfunctions(object):
         var expectedData = this.browserbot.getUserWindow().jQuery.parsJSON(data);
         var actualData = this.browserbot.getUserWindow().jQuery.parseJSON(actualData);
         for (var key in expectedData) {
-            if ( expectedData[key] != actualData[key]) {
+            if (expectedData[key] != actualData[key]) {
                 throw new SeleniumError (key + ": actual value " + actualValue + 
                         " does not match expected value " + expectedValue);
                 };
             };
         };    
         """
-        pass
-        
-   
-    def wd_getTextLength(self, target, value):
-        """
-        Selenium.prototype.getTextLength = function(locator) {
-            var length = thisgetText(locator).length;
-            return length;
-        };
-        """
-        pass
+        connection = httplib.HTTPConnection(self.base_url)
+        connection.request("GET", target)
+        assert connection.getresponse() == 200
+        data = json.loads(connection.read())
+        reference = json.loads(value)
+        for key in reference:
+            if data[key] != reference[key]:
+                raise AssertionError(key + ": actual value " + 
+                        data[key] + " does not match expected value " + reference[key])
     
    
     def wd_assertTextContainedInEachElement(self, target, value):
@@ -78,7 +76,9 @@ class Userfunctions(object):
             };
         };
         """
-        pass
+        webelements = self.commands.find_targets(self.driver, target)
+        for element in webelements:
+            assert self.commands.isContained(value, element.text)
     
     def wd_doVerifyValidation(self, target, value):
         """
@@ -109,7 +109,7 @@ class Userfunctions(object):
                     Assert.matches(actualAttributeValue, expectedAttributeValue);
                 };
             return false;
-            // Errors are catched because selenium will be corrupted otherwise. The wait
+            // Errors are caught because selenium will be corrupted otherwise. The wait
             //    parameters have to be reseted.
             } catch (e) {
                 resetWaitParams();
@@ -119,10 +119,7 @@ class Userfunctions(object):
     
         function ActionResult(terminationCondition) {
             this.terminationCondition = function() {
-                //alert ("Hallo");
-                //alert (!NotWaitingForCondition);
                 return true;
-                //return terminationCondition; //&& NotWaitingForCondition();
             };
         };
         
@@ -141,4 +138,11 @@ class Userfunctions(object):
             };
         };
         """
-        pass
+        expectedStatus = value.split(":")
+        expectedAttributeValue = expectedStatus[0].strip()
+        expectedValidationMsg = expectedStatus[1].strip()
+        self.commands.wd_waitForAttribute(target + '@class', expectedAttributeValue)
+        self.commands.wd_mouseOver(target)
+        assert self.driver.getText('id=validationMsg').strip() == expectedValidationMsg
+        self.commands.wd_mouseOut()
+            
