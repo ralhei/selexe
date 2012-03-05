@@ -25,6 +25,7 @@ class Userfunctions(object):
         connection =  httplib.HTTPConnection(self.base_url)
         connection.request('PUT', target , value)
         result = connection.getresponse()
+        print result.status
     '''
     Selenium.prototype.doDeleteRest = function(url) {
         this.browserbot.getUserWindow().jQuery.ajax({url: url, async: false,

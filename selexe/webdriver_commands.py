@@ -154,7 +154,6 @@ class Webdriver(object):
     # The actual translations from selenium-to-webdriver commands:
 
     def wd_open(self, target, value=None):
-        print self.base_url + target
         self.driver.get(self.base_url + target)
 
     def wd_clickAndWait(self, target, value=None):
