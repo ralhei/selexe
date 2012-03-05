@@ -8,6 +8,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.alert import Alert
 from fnmatch import fnmatchcase as globmatchcase
 from userfunctions import Userfunctions
+from html2text import html2text
 
 #globals
 # time until timeout in milliseconds
@@ -177,7 +178,7 @@ def create_selenium_methods(cls):
 class Webdriver(object):
     def __init__(self, driver, base_url):
         self.driver = driver
-        self.driver.implicitly_wait(1)
+        self.driver.implicitly_wait(0)
         self.base_url = base_url
         self.initVerificationErrors()
         self.importUserFunctions()
@@ -272,10 +273,10 @@ class Webdriver(object):
         tag, tvalue = self.tag_and_value(value)
         select = Select(target_elem)
         if tag in ['label', None]:
-            tvalue = self.matchChildrenText(target, tvalue)
+            tvalue = self.matchOptionText(target, tvalue)
             select.select_by_visible_text(tvalue)
         elif tag == 'value':
-            tvalue = self.matchChildrenValue(target, tvalue)
+            tvalue = self.matchOptionValue(target, tvalue)
             select.select_by_value(tvalue)
         elif tag == 'id':
             target_elem = self.find_target(value)
@@ -285,16 +286,16 @@ class Webdriver(object):
         else:
             raise RuntimeError("Unknown option locator type: " + tag)
      
-    def matchChildrenText(self, target, tvalue):
-        for child in self.find_children(target):
-            text = child.text
+    def matchOptionText(self, target, tvalue):
+        for option in self.find_children(target):
+            text = option.text
             if self.matches(tvalue, text):
                 return text
         return tvalue
     
-    def matchChildrenValue(self, target, tvalue):
-        for child in self.find_children(target):
-            value = child.get_attribute("value")
+    def matchOptionValue(self, target, tvalue):
+        for option in self.find_children(target):
+            value = option.get_attribute("value")
             if self.matches(tvalue, value):
                 return value
         return tvalue
@@ -304,7 +305,7 @@ class Webdriver(object):
         @param target: a string determining an input element in the HTML page
         @param value:  text to type
         """
-        target_elem = self.find_target(self.driver, target)
+        target_elem = self.find_target(target)
         target_elem.clear()
         target_elem.send_keys(value)
         
@@ -328,7 +329,7 @@ class Webdriver(object):
     def wd_waitForPopUp(self, target, value):
         try:
             timeout = int(value)
-        except ValueError:
+        except (ValueError, TypeError):
             timeout = TIMEOUT
         if target in ("null", "0"):
             raise NotImplementedError('"null" or "0" are currently not available as pop up locators')
@@ -359,7 +360,8 @@ class Webdriver(object):
     ###
 
     def wd_SEL_TextPresent(self, target, value=None):
-        return True, self.isContained(target, self.driver.page_source)
+        text = html2text(self.driver.page_source)
+        return True, self.isContained(target, text)
 
     def wd_SEL_ElementPresent(self, target, value=None):
         try:
@@ -379,8 +381,8 @@ class Webdriver(object):
         return value, self.find_target(target).get_attribute("value").strip()
     
     def wd_SEL_XpathCount(self, target, value):
-        count = len(self.find_targets(target))
-        return value, str(count)
+        count = len(self.driver.find_elements_by_xpath(target))
+        return int(value), count
 
     def wd_SEL_Alert(self, target, value=None):
         alert = Alert(self.driver)
@@ -448,19 +450,6 @@ class Webdriver(object):
                 return self.driver.find_element_by_name(ttarget) 
         else:
             raise RuntimeError('no way to find target "%s"' % target)
-    
-    def find_targets(self, target):
-        ttype, ttarget = self.tag_and_value(target)
-        if ttype == 'css':
-            return self.driver.find_elements_by_css_selector(ttarget)
-        elif ttype == 'xpath': 
-            return self.driver.find_elements_by_xpath(ttarget)
-        elif ttype == 'name':
-            return self.driver.find_elements_by_name(ttarget)
-        elif ttype == 'link':
-            return self.driver.find_elements_by_link_text(ttarget)
-        else:
-            raise RuntimeError('no way to find targets "%s"' % target)
         
     
     def find_children(self, target):
@@ -470,9 +459,9 @@ class Webdriver(object):
         elif ttype == 'xpath':
             return self.driver.find_elements_by_xpath(ttarget + "/*")
         elif ttype == 'name':
-            return self.driver.find_elements_by_xpath("//*[@name='" + ttarget + "']//*")
+            return self.driver.find_elements_by_xpath("//*[@name='" + ttarget + "']/*")
         elif ttype in ['id', None]:
-            return self.driver.find_elements_by_xpath("//" + ttarget + "/*")
+            return self.driver.find_elements_by_xpath("//*[@id='" + ttarget + "']/*")
         else:
             raise RuntimeError('no way to find targets "%s"' % target)
         
@@ -514,10 +503,10 @@ class Webdriver(object):
     
     def isContained(self, pat, text):
         # 1) regexp
-        if pat.startswith('regex:'):
-            try:
-                return text == re.search(pat[7:], text).group(0)
-            except AttributeError:
+        if pat.startswith('regexp:'):
+            if re.search(pat[7:], text) is not None:
+                return True
+            else:
                 return False
         # 2) exact-tag:
         elif pat.startswith("exact:"):

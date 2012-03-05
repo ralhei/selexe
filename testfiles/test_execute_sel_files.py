@@ -67,6 +67,6 @@ def test_failing_test():
     """run simple selenese test, with verifyText find wrong string"""
     selexe = SelexeRunner('verifyTestFailing.sel')
     res = selexe.run()
-    assert res == ['Value "DIV 1" did not match "This should fail!"']
+    assert res == ['Actual value "DIV 1" did not match "This should fail!"']
 
 
