@@ -5,7 +5,7 @@ import sys, os, logging
 from selenium import webdriver
 from parse_sel import SeleniumParser
 from webdriver_commands import Webdriver
-
+from cmdargs import DEFAULT_FIXTURES_FILE
 
 
 class SelexeError(Exception):
@@ -44,7 +44,7 @@ class SelexeRunner(object):
     def _wrapExecutionPDB(self, seleniumParser, wdc):
         """Run selenium execution, jump into post-mortem debugger in case of an error"""
         try:
-            self._wrapExecution(seleniumParser, wdc)
+            return self._wrapExecution(seleniumParser, wdc)
         except:
             import pdb
             exc = sys.exc_info()
@@ -56,7 +56,7 @@ class SelexeRunner(object):
             logging.info("Calling setUp()")
             self.setUpFunc(wdc)
             logging.info("setUp() finished")
-            # remove all verification errors possibly generated during setUpFunct()
+            # remove all verification errors possibly generated during setUpFunc()
             wdc.initVerificationErrors()
         try:
             return self._executeSelenium(seleniumParser, wdc)
@@ -74,11 +74,13 @@ class SelexeRunner(object):
 
 
 def findFixtureFunctions(modulePath=None):
-    if not modulePath:
-        modulePath = 'selexeFixtures.py' if os.path.exists('selexeFixtures.py') else None
-    else:
-        if not os.path.exists(modulePath):
-            raise SelexeError('Cannot find selexe fixture module "%s"')
+    if modulePath == DEFAULT_FIXTURES_FILE and not os.path.exists(DEFAULT_FIXTURES_FILE):
+        # The default fixtures file could be missing, then just no fixtures will be used
+        modulePath = None
+    elif modulePath and not os.path.exists(modulePath):
+        # non-default fixtures files must exist, else raise an exception!
+        raise SelexeError('Cannot find selexe fixture module "%s"')
+
     if modulePath:
         path, moduleWithExt = os.path.split(os.path.realpath(modulePath))
         module = os.path.splitext(moduleWithExt)[0]
@@ -107,4 +109,5 @@ if __name__ == '__main__':
         s = SelexeRunner(selFilename, baseuri=options.baseuri, pmd=options.pmd, fixtures=options.fixtures)
         res = s.run()
         if res:
-            print "%s: %s" % (selFilename, res)
+            sys.stderr.write("\nVerification errors in %s: %s\n" % (selFilename, res))
+            sys.exit(1)

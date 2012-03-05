@@ -1,4 +1,5 @@
-import BeautifulSoup
+import re, BeautifulSoup
+from htmlentitydefs import name2codepoint
 
 
 class SeleniumParser(object):
@@ -12,10 +13,16 @@ class SeleniumParser(object):
         body = self.soup.find('tbody')
         for tr in body.findAll('tr'):
             # return tuple (command, target, value) -> this corresponds to column names in Selenium IDE
-            t = tuple([(td.string) for td in tr.findAll('td')])
-            #t = tuple([td.text for td in tr.findAll('td')])
-            yield t
+            command, target, value = [td.text for td in tr.findAll('td')]
+            v_value = htmlentitydecode(value)
+            v_target = htmlentitydecode(target)
+            yield (command, v_target, v_value)
 
+
+
+def htmlentitydecode(s):
+    """translate all HTML entities like &nbsp; into clean text characters"""
+    return re.sub('&(%s);' % '|'.join(name2codepoint), lambda m: unichr(name2codepoint[m.group(1)]), s)
 
 
 if __name__ == '__main__':
