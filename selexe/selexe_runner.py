@@ -4,7 +4,7 @@ import sys, os, logging
 ###
 from selenium import webdriver
 from parse_sel import SeleniumParser
-from webdriver_commands import Webdriver
+from selenium_driver import SeleniumDriver
 from cmdargs import DEFAULT_FIXTURES_FILE
 
 
@@ -36,7 +36,7 @@ class SelexeRunner(object):
         logging.info('baseURI: %s' % baseURI)
         try:
             driver.implicitly_wait(30)
-            wdc = Webdriver(driver, baseURI)
+            wdc = SeleniumDriver(driver, baseURI)
             return exe(seleniumParser, wdc)
         finally:
             driver.quit()

@@ -5,7 +5,7 @@ import sys, py.test
 sys.path.insert(0, '..')
 ###
 from selenium import webdriver
-from selexe.webdriver_commands import Webdriver
+from selexe.selenium_driver import SeleniumDriver
 from selenium.common.exceptions import NoSuchElementException
 from selenium.common.exceptions import NoAlertPresentException
 from selenium.common.exceptions import NoSuchWindowException
@@ -17,11 +17,11 @@ BASE_URI = 'http://localhost:8080'
 
 
 
-class Test_WebDriverCommands(object):
+class Test_SeleniumDriver(object):
     def setup_method(self, method):
         self.driver = webdriver.Firefox()
         self.driver.implicitly_wait(30)
-        self.wdc = Webdriver(self.driver, BASE_URI)
+        self.wdc = SeleniumDriver(self.driver, BASE_URI)
 
     def teardown_method(self, method):
         self.driver.quit()

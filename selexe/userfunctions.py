@@ -78,7 +78,7 @@ class Userfunctions(object):
         """
         webelements = self.commands.find_targets(self.driver, target)
         for element in webelements:
-            assert self.commands.isContained(value, element.text)
+            assert self.commands._isContained(value, element.text)
     
     def wd_doVerifyValidation(self, target, value):
         """

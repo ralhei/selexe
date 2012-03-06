@@ -14,5 +14,5 @@ selexe/__init__.py
 selexe/cmdargs.py
 selexe/parse_sel.py
 selexe/selexe_runner.py
-selexe/webdriver_commands.py
+selexe/selenium_driver.py
 selexe/webdriver_sample.py
