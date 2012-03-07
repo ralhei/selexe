@@ -36,41 +36,41 @@ class SelexeRunner(object):
         logging.info('baseURI: %s' % baseURI)
         try:
             driver.implicitly_wait(30)
-            wdc = SeleniumDriver(driver, baseURI)
-            return exe(seleniumParser, wdc)
+            sd = SeleniumDriver(driver, baseURI)
+            return exe(seleniumParser, sd)
         finally:
             driver.quit()
 
-    def _wrapExecutionPDB(self, seleniumParser, wdc):
+    def _wrapExecutionPDB(self, seleniumParser, sd):
         """Run selenium execution, jump into post-mortem debugger in case of an error"""
         try:
-            return self._wrapExecution(seleniumParser, wdc)
+            return self._wrapExecution(seleniumParser, sd)
         except:
             import pdb
             exc = sys.exc_info()
             pdb.post_mortem(exc[2])
 
-    def _wrapExecution(self, seleniumParser, wdc):
+    def _wrapExecution(self, seleniumParser, sd):
         """Wrap execution of selenium tests in setUp and tearDown functions if available"""
         if self.setUpFunc:
             logging.info("Calling setUp()")
-            self.setUpFunc(wdc)
+            self.setUpFunc(sd)
             logging.info("setUp() finished")
             # remove all verification errors possibly generated during setUpFunc()
-            wdc.initVerificationErrors()
+            sd.initVerificationErrors()
         try:
-            return self._executeSelenium(seleniumParser, wdc)
+            return self._executeSelenium(seleniumParser, sd)
         finally:
             if self.tearDownFunc:
                 logging.info("Calling tearDown()")
-                self.tearDownFunc(wdc)
+                self.tearDownFunc(sd)
                 logging.info("tearDown() finished")
 
-    def _executeSelenium(self, seleniumParser, wdc):
+    def _executeSelenium(self, seleniumParser, sd):
         """Execute the actual selenium statements found in *sel file"""
         for command, target, value in seleniumParser:
-            wdc(command, target, value)
-        return wdc.getVerificationErrors()
+            sd(command, target, value)
+        return sd.getVerificationErrors()
 
 
 def findFixtureFunctions(modulePath=None):
