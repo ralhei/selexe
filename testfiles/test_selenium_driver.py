@@ -266,7 +266,7 @@ class Test_SeleniumDriver(object):
         #
         # now switch focus the pop up
         self.sd('selectWindow', "name=stekie")
-        assert self.sd('getTextPresent', 'This is a pop up')
+        assert self.sd('isTextPresent', 'This is a pop up')
         #
         # now switch focus back to the main window
         self.sd('selectWindow', "null")
@@ -308,6 +308,7 @@ class Test_SeleniumDriver(object):
     def test_SeleniumStringPatterns(self):
         """testing string match parameters regexp:, exact: and glob: in _match and _isContained methods"""
         self.sd('open', '/static/page1')
+        self.sd('getText', 'css=h1', 'regexp:H1 text')
         #
         # match - regexp:
         with pytest.raises(AssertionError):

@@ -28,7 +28,7 @@ def create_get_is(func, var):
         data = func(self, *args, **kw)
         return data
     
-    wrap_func = {1 : wrap_func_get, 2 : wrap_func_is}     
+    wrap_func = {"get" : wrap_func_get, "is" : wrap_func_is}     
     return wrap_func[var]
 
 
@@ -62,7 +62,7 @@ def create_verify(func, var):
         self.verificationErrors.append(verificationError)        
         return False
     
-    wrap_func = {1 : wrap_func_get, 2 : wrap_func_is}     
+    wrap_func = {"get" : wrap_func_get, "is" : wrap_func_is}     
     return wrap_func[var]
 
 
@@ -96,24 +96,25 @@ def create_verifyNot(func, var):
         self.verificationErrors.append(verificationError)        
         return False
 
-    wrap_func = {1 : wrap_func_get, 2 : wrap_func_is}     
+    wrap_func = {"get" : wrap_func_get, "is" : wrap_func_is}     
     return wrap_func[var]
 
    
-def create_assert(func, variante):
+def create_assert(func, var):
     """
     Decorator to convert a test method of class SeleniumCommander (starting with 'wd_SEL*') into a Selenium
     'assert*' function.
     """
     def wrap_func_get(self, *args, **kw):
         reference, data = func(self, *args, **kw)
+        print "a"
         assert self._matches(reference, data)
 
     def wrap_func_is(self, *args, **kw):
         assert func(self, *args, **kw)
         
-    wrap_func = {1 : wrap_func_get, 2 : wrap_func_is}     
-    return wrap_func[variante]
+    wrap_func = {"get" : wrap_func_get, "is" : wrap_func_is}     
+    return wrap_func[var]
 
 
 def create_assertNot(func, var):
@@ -128,7 +129,7 @@ def create_assertNot(func, var):
     def wrap_func_is(self, *args, **kw):
         assert not func(self, *args, **kw)
         
-    wrap_func = {1 : wrap_func_get, 2 : wrap_func_is}    
+    wrap_func = {"get" : wrap_func_get, "is" : wrap_func_is}    
     return wrap_func[var]
 
 
@@ -160,7 +161,7 @@ def create_waitFor(func, var):
         else:
             raise RuntimeError("Timed out after %d ms" % timeout)
     
-    wrap_func = {1 : wrap_func_get, 2 : wrap_func_is}     
+    wrap_func = {"get" : wrap_func_get, "is" : wrap_func_is}     
     return wrap_func[var]
 
 def create_waitForNot(func, var):
@@ -192,7 +193,7 @@ def create_waitForNot(func, var):
         else:
             raise RuntimeError("Timed out after %d ms" % timeout)
         
-    wrap_func = {1 : wrap_func_get, 2 : wrap_func_is}     
+    wrap_func = {"get" : wrap_func_get, "is" : wrap_func_is}     
     return wrap_func[var]
 
 
@@ -207,9 +208,9 @@ def create_store(func, var):
         
     def wrap_func_is(self, *args, **kw):
         data = func(self, *args, **kw)
-        self.storedVariables[func.__args__[1]] = str(data).lower()
+        self.storedVariables[args[1]] = str(data).lower()
         
-    wrap_func = {1 : wrap_func_get, 2 : wrap_func_is}     
+    wrap_func = {"get" : wrap_func_get, "is" : wrap_func_is}     
     return wrap_func[var]
 
 
@@ -219,7 +220,7 @@ def create_selenium_methods(cls):
     starting with 'wd_SEL*'
     """
 
-    def decorate_method(cls, methodName, prefix, decoratorFunc):
+    def decorate_method(cls, methodName, new_prefix, prefix, decoratorFunc):
         """
         This method double-decorates a generic webdriver command.
         1. Decorate it with one of the create_get, create_verify... decorators.
@@ -228,30 +229,26 @@ def create_selenium_methods(cls):
            This wrapper expands selenium variables in the 'target' and 'value' and
            does the logging.
         """
-        var = re.search(r'\w+_', methodName[LPREFIX:]).group(0)
-        seleniumMethodName = prefix + methodName[LSTR[var]:]
-        print '11'
-        wrappedMethod = decoratorFunc(cls.__dict__[methodName], VARIANTS[var])
+        seleniumMethodName = new_prefix + methodName[len(prefix):]
+        wrappedMethod = decoratorFunc(cls.__dict__[methodName], variants[prefix])
         wrappedMethod.__name__ = seleniumMethodName
         setattr(cls, seleniumMethodName, seleniumcommand(wrappedMethod))
         
-    PREFIX = 'SEL_'
-    LPREFIX = len(PREFIX)
-    VAR1 = 'get_'
-    VAR2 = 'is_'
-    VARIANTS = {VAR1 : 1, VAR2 : 2}
-    LSTR = {VAR1 : LPREFIX + len(VAR1), VAR2 : LPREFIX + len(VAR2)} 
-
-    for methodName in cls.__dict__.keys():
-        if methodName.startswith(PREFIX):
-            decorate_method(cls, methodName, 'get', create_get_is)
-            decorate_method(cls, methodName, 'verify', create_verify)
-            decorate_method(cls, methodName, 'verifyNot', create_verifyNot)
-            decorate_method(cls, methodName, 'assert', create_assert)
-            decorate_method(cls, methodName, 'assertNot', create_assertNot)
-            decorate_method(cls, methodName, 'waitFor', create_waitFor)
-            decorate_method(cls, methodName, 'waitForNot', create_waitForNot)
-            decorate_method(cls, methodName, 'store', create_store)    
+    PREFIX1 = 'SEL_get_'
+    PREFIX2 = 'SEL_is_'
+    variants = {PREFIX1 : "get" , PREFIX2 : "is"}
+    
+    for prefix in variants.keys():
+        for methodName in cls.__dict__.keys():    
+            if methodName.startswith(prefix):
+                decorate_method(cls, methodName, variants[prefix], prefix, create_get_is)
+                decorate_method(cls, methodName, 'verify', prefix, create_verify)
+                decorate_method(cls, methodName, 'verifyNot', prefix, create_verifyNot)
+                decorate_method(cls, methodName, 'assert', prefix, create_assert)
+                decorate_method(cls, methodName, 'assertNot', prefix, create_assertNot)
+                decorate_method(cls, methodName, 'waitFor', prefix, create_waitFor)
+                decorate_method(cls, methodName, 'waitForNot', prefix, create_waitForNot)
+                decorate_method(cls, methodName, 'store', prefix, create_store)    
     return cls        
     
 
@@ -265,7 +262,7 @@ def seleniumcommand(method):
             logging.info('%s(%r, %r)' % (method.__name__, target, value))
         v_target = self._expandVariables(target)
         v_value  = self._expandVariables(value) if value else value
-        return method(self, v_target, value=v_value, **kw)
+        return method(self, v_target, v_value, **kw)
     #
     seleniumMethod.__name__ = method.__name__
     seleniumMethod.__doc__ = method.__doc__
@@ -601,7 +598,7 @@ class SeleniumDriver(object):
         see: http://release.seleniumhq.org/selenium-remote-control/0.9.2/doc/dotnet/Selenium.html
         """
         # 1) plain equality comparison
-        if reference not in [str, unicode]:
+        if type(reference) not in [str, unicode]:
             return data == reference 
         # 2) regexp
         elif reference.startswith('regexp:'):
