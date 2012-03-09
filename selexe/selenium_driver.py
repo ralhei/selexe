@@ -1,8 +1,7 @@
 import logging, time, re, types
 ###
-from selenium.common.exceptions import NoSuchWindowException
-from selenium.common.exceptions import NoSuchElementException
-from selenium.common.exceptions import NoAlertPresentException
+from selenium.common.exceptions import NoSuchWindowException, NoSuchElementException, NoAlertPresentException, \
+UnexpectedTagNameException,  NoSuchFrameException, NoSuchAttributeException 
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.alert import Alert
@@ -140,7 +139,6 @@ def create_store(func):
     """
     def wrap_func(self, *args, **kw):
         reference, data = func(self, *args, **kw)
-        assert data
         self.storedVariables[reference] = data
     return wrap_func
 
@@ -210,8 +208,6 @@ class SeleniumDriver(object):
         self._importUserFunctions()
         # 'storedVariables' is used through the 'create_store' decorator above to store values during a selenium run:
         self.storedVariables = {}
-        # Action Chains will not work with several Firefox Versions. Firefox Version 10.2 should be ok.
-        self.action = ActionChains(self.driver)
         
     def initVerificationErrors(self):
         """reset list of verification errors"""
@@ -240,7 +236,7 @@ class SeleniumDriver(object):
         for funcName in funcNames:
             setattr(self, funcName, getattr(usr, funcName))
 
-    sel_var_pat = re.compile(r'\$({\w+})')
+    sel_var_pat = re.compile(r'\${([\w\d]+)}')
     def _expandVariables(self, s):
         """expand variables contained in selenese files
         Multiple variables can be contained in a string from a selenese file. The format is ${<VARIABLENAME}.
@@ -323,6 +319,19 @@ class SeleniumDriver(object):
             if self._matches(tvalue, value):
                 return value
         return tvalue
+    
+    def _find_children(self, target):
+        ttype, ttarget = self._tag_and_value(target)
+        if ttype == 'css':
+            return self.driver.find_elements_by_css_selector(ttarget + ">*" )
+        elif ttype == 'xpath':
+            return self.driver.find_elements_by_xpath(ttarget + "/*")
+        elif ttype == 'name':
+            return self.driver.find_elements_by_xpath("//*[@name='" + ttarget + "']/*")
+        elif ttype in ['id', None]:
+            return self.driver.find_elements_by_xpath("//*[@id='" + ttarget + "']/*")
+        else:
+            raise UnexpectedTagNameException('no way to find child targets "%s"' % target)
 
     @seleniumcommand
     def type(self, target, value):
@@ -348,12 +357,14 @@ class SeleniumDriver(object):
 
     @seleniumcommand
     def mouseOver(self, target, value=None):
+        # Action Chains will not work with several Firefox Versions. Firefox Version 10.2 should be ok.
         target_elem = self._find_target(target)
-        self.action.move_to_element(target_elem).perform()
+        ActionChains(self.driver).move_to_element(target_elem).perform()
 
     @seleniumcommand
     def mouseOut(self, target, value=None):
-        self.action.move_by_offset(0, 0).perform()
+        size = self._find_target(target).size
+        ActionChains(self.driver).move_by_offset(size["width"], 0).perform()
 
     @seleniumcommand
     def waitForPopUp(self, target, value):
@@ -377,15 +388,26 @@ class SeleniumDriver(object):
     def selectWindow(self, target, value):
         ttype, ttarget = self._tag_and_value(target)
         if (ttype != 'name' and ttarget != 'null'):
-            raise NotImplementedError('only window locators with the prefix "name=" are supported currently')
-        if ttarget == "null":
+            raise NotImplementedError('Only window locators with the prefix "name=" are supported currently')
+        if ttarget in ["null", ""]:
             ttarget = 0
         self.driver.switch_to_window(ttarget)
 
     @seleniumcommand
     def selectFrame(self, target, value):
-        webElem = self._find_target(target)
-        self.driver.switch_to_frame(webElem)
+        if target.startswith('relative='):
+            if target[9:] == 'top':
+                self.driver.switch_to_default_content()
+            elif target[9:] == 'parent':
+                raise NotImplementedError('Parent frames can not be located')
+            else:
+                raise NoSuchFrameException
+        else:
+            try:
+                frame = int(target)
+            except (ValueError, TypeError):
+                frame = self._find_target(target)
+            self.driver.switch_to_frame(frame)
 
     ###
     # Section 2: All wd_SEL*-statements (from which all other methods are created dynamically via decorators)
@@ -404,7 +426,10 @@ class SeleniumDriver(object):
 
     def wd_SEL_Attribute(self, target, value):
         target, sep, attr = target.rpartition("@")
-        return value, self._find_target(target).get_attribute(attr).strip()
+        attrValue = self._find_target(target).get_attribute(attr)
+        if attrValue is None:
+            raise NoSuchAttributeException
+        return value, attrValue.strip()
         
     def wd_SEL_Text(self, target, value):
         return value, self._find_target(target).text.strip()
@@ -481,21 +506,7 @@ class SeleniumDriver(object):
             except:
                 return self.driver.find_element_by_name(ttarget) 
         else:
-            raise RuntimeError('no way to find target "%s"' % target)
-        
-    
-    def _find_children(self, target):
-        ttype, ttarget = self._tag_and_value(target)
-        if ttype == 'css':
-            return self.driver.find_elements_by_css_selector(ttarget + ">*" )
-        elif ttype == 'xpath':
-            return self.driver.find_elements_by_xpath(ttarget + "/*")
-        elif ttype == 'name':
-            return self.driver.find_elements_by_xpath("//*[@name='" + ttarget + "']/*")
-        elif ttype in ['id', None]:
-            return self.driver.find_elements_by_xpath("//*[@id='" + ttarget + "']/*")
-        else:
-            raise RuntimeError('no way to find targets "%s"' % target)
+            raise UnexpectedTagNameException('no way to find target "%s"' % target)
         
         
     def _matches(self, reference, data):
@@ -536,10 +547,7 @@ class SeleniumDriver(object):
     def _isContained(self, pat, text):
         # 1) regexp
         if pat.startswith('regexp:'):
-            if re.search(pat[7:], text) is not None:
-                return True
-            else:
-                return False
+            return re.search(pat[7:], text) is not None
         # 2) exact-tag:
         elif pat.startswith("exact:"):
             return pat[6:] in text
