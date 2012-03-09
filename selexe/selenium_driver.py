@@ -15,23 +15,29 @@ TIMEOUT = 20000
 
 
 
-def create_get(func):
+def create_get_is(func, var):
     """
     Decorator to convert a test method of class SeleniumCommander (starting with 'wd_SEL*') into a Selenium
     'get*' function.
     """
-    def wrap_func(self, *args, **kw):
+    def wrap_func_get(self, *args, **kw):
         reference, data = func(self, *args, **kw)
         return data
-    return wrap_func
+    
+    def wrap_func_is(self, *args, **kw):
+        data = func(self, *args, **kw)
+        return data
+    
+    wrap_func = {1 : wrap_func_get, 2 : wrap_func_is}     
+    return wrap_func[var]
 
 
-def create_verify(func):
+def create_verify(func, var):
     """
     Decorator to convert a test method of class SeleniumCommander (starting with 'wd_SEL*') into a Selenium
     'verify*' function.
     """
-    def wrap_func(self, *args, **kw):
+    def wrap_func_get(self, *args, **kw):
         try:
             reference, data = func(self, *args, **kw)
             assert self._matches(reference, data)
@@ -39,22 +45,33 @@ def create_verify(func):
         except NoAlertPresentException:
             verificationError = "There were no alerts or confirmations"
         except AssertionError:
-            if data == False:
-                verificationError = "false"
-            else:
-                verificationError = 'Actual value "%s" did not match "%s"' % (str(data), str(reference))
+            verificationError = 'Actual value "%s" did not match "%s"' % (str(data), str(reference))
         logging.error(verificationError)
         self.verificationErrors.append(verificationError)        
         return False
-    return wrap_func
+    
+    def wrap_func_is(self, *args, **kw):
+        try:
+            assert func(self, *args, **kw)
+            return True
+        except NoAlertPresentException:
+            verificationError = "There were no alerts or confirmations"
+        except AssertionError:
+            verificationError = "false"
+        logging.error(verificationError)
+        self.verificationErrors.append(verificationError)        
+        return False
+    
+    wrap_func = {1 : wrap_func_get, 2 : wrap_func_is}     
+    return wrap_func[var]
 
 
-def create_verifyNot(func):
+def create_verifyNot(func, var):
     """
     Decorator to convert a test method of class SeleniumCommander (starting with 'wd_SEL*') into a Selenium '
     verifyNot*' function.
     """
-    def wrap_func(self, *args, **kw):
+    def wrap_func_get(self, *args, **kw):
         try:
             reference, data = func(self, *args, **kw)
             assert not self._matches(reference, data)
@@ -62,44 +79,65 @@ def create_verifyNot(func):
         except NoAlertPresentException:
             verificationError = "There were no alerts or confirmations"
         except AssertionError:
-            if data == True:
-                verificationError = "true"
-            else:
-                verificationError = 'Actual value "%s" did match "%s"' % (str(data), str(reference))
+            verificationError = 'Actual value "%s" did match "%s"' % (str(data), str(reference))
         logging.error(verificationError)
         self.verificationErrors.append(verificationError)        
         return False
-    return wrap_func
+    
+    def wrap_func_is(self, *args, **kw):
+        try:
+            assert not func(self, *args, **kw)
+            return True
+        except NoAlertPresentException:
+            verificationError = "There were no alerts or confirmations"
+        except AssertionError:
+            verificationError = "true"
+        logging.error(verificationError)
+        self.verificationErrors.append(verificationError)        
+        return False
 
+    wrap_func = {1 : wrap_func_get, 2 : wrap_func_is}     
+    return wrap_func[var]
 
-def create_assert(func):
+   
+def create_assert(func, variante):
     """
     Decorator to convert a test method of class SeleniumCommander (starting with 'wd_SEL*') into a Selenium
     'assert*' function.
     """
-    def wrap_func(self, *args, **kw):
+    def wrap_func_get(self, *args, **kw):
         reference, data = func(self, *args, **kw)
         assert self._matches(reference, data)
-    return wrap_func
+
+    def wrap_func_is(self, *args, **kw):
+        assert func(self, *args, **kw)
+        
+    wrap_func = {1 : wrap_func_get, 2 : wrap_func_is}     
+    return wrap_func[variante]
 
 
-def create_assertNot(func):
+def create_assertNot(func, var):
     """
     Decorator to convert a test method of class SeleniumCommander (starting with 'wd_SEL*') into a Selenium
     'assertNot*' function.
     """
-    def wrap_func(self, *args, **kw):
+    def wrap_func_get(self, *args, **kw):
         reference, data = func(self, *args, **kw)
         assert not self._matches(reference, data)
-    return wrap_func
+    
+    def wrap_func_is(self, *args, **kw):
+        assert not func(self, *args, **kw)
+        
+    wrap_func = {1 : wrap_func_get, 2 : wrap_func_is}    
+    return wrap_func[var]
 
 
-def create_waitFor(func):
+def create_waitFor(func, var):
     """
     Decorator to convert a test method of class SeleniumCommander (starting with 'wd_SEL*') into a Selenium
     'waitFor*' function.
     """
-    def wrap_func(self, *args, **kw):
+    def wrap_func_get(self, *args, **kw):
         timeout = kw.pop('timeout', TIMEOUT)
         for i in range (timeout / 1000):
             try:
@@ -110,15 +148,27 @@ def create_waitFor(func):
                 time.sleep(1)
         else:
             raise RuntimeError("Timed out after %d ms" % timeout)
-    return wrap_func
 
+    def wrap_func_is(self, *args, **kw):
+        timeout = kw.pop('timeout', TIMEOUT)
+        for i in range (timeout / 1000):
+            try:
+                assert func(self, *args, **kw)
+                break
+            except AssertionError:
+                time.sleep(1)
+        else:
+            raise RuntimeError("Timed out after %d ms" % timeout)
+    
+    wrap_func = {1 : wrap_func_get, 2 : wrap_func_is}     
+    return wrap_func[var]
 
-def create_waitForNot(func):
+def create_waitForNot(func, var):
     """
     Decorator to convert a test method of class SeleniumCommander (starting with 'wd_SEL*') into a Selenium
     'waitForNot*' function.
     """
-    def wrap_func(self, *args, **kw):
+    def wrap_func_get(self, *args, **kw):
         timeout = kw.pop('timeout', TIMEOUT)
         for i in range (timeout / 1000):
             try:
@@ -129,19 +179,38 @@ def create_waitForNot(func):
                 time.sleep(1)
         else:
             raise RuntimeError("Timed out after %d ms" % timeout)
-    return wrap_func
+        
+
+    def wrap_func_is(self, *args, **kw):
+        timeout = kw.pop('timeout', TIMEOUT)
+        for i in range (timeout / 1000):
+            try:
+                assert not func(self, *args, **kw)
+                break
+            except AssertionError:
+                time.sleep(1)
+        else:
+            raise RuntimeError("Timed out after %d ms" % timeout)
+        
+    wrap_func = {1 : wrap_func_get, 2 : wrap_func_is}     
+    return wrap_func[var]
 
 
-def create_store(func):
+def create_store(func, var):
     """
     Decorator to convert a test method of class SeleniumCommander (starting with 'wd_SEL*') into a Selenium
     'store*' function.
     """
-    def wrap_func(self, *args, **kw):
-        reference, data = func(self, *args, **kw)
-        self.storedVariables[reference] = data
-    return wrap_func
-
+    def wrap_func_get(self, *args, **kw):
+        var, data = func(self, *args, **kw)
+        self.storedVariables[var] = data
+        
+    def wrap_func_is(self, *args, **kw):
+        data = func(self, *args, **kw)
+        self.storedVariables[func.__args__[1]] = str(data).lower()
+        
+    wrap_func = {1 : wrap_func_get, 2 : wrap_func_is}     
+    return wrap_func[var]
 
 
 def create_selenium_methods(cls):
@@ -149,8 +218,6 @@ def create_selenium_methods(cls):
     Class decorator to setup all available wrapping decorators to those methods in class SeleniumCommander
     starting with 'wd_SEL*'
     """
-    PREFIX = 'wd_SEL_'
-    lstr = len(PREFIX)
 
     def decorate_method(cls, methodName, prefix, decoratorFunc):
         """
@@ -161,23 +228,32 @@ def create_selenium_methods(cls):
            This wrapper expands selenium variables in the 'target' and 'value' and
            does the logging.
         """
-        seleniumMethodName = prefix + methodName[lstr:]
-        wrappedMethod = decoratorFunc(cls.__dict__[methodName])
+        var = re.search(r'\w+_', methodName[LPREFIX:]).group(0)
+        seleniumMethodName = prefix + methodName[LSTR[var]:]
+        print '11'
+        wrappedMethod = decoratorFunc(cls.__dict__[methodName], VARIANTS[var])
         wrappedMethod.__name__ = seleniumMethodName
         setattr(cls, seleniumMethodName, seleniumcommand(wrappedMethod))
+        
+    PREFIX = 'SEL_'
+    LPREFIX = len(PREFIX)
+    VAR1 = 'get_'
+    VAR2 = 'is_'
+    VARIANTS = {VAR1 : 1, VAR2 : 2}
+    LSTR = {VAR1 : LPREFIX + len(VAR1), VAR2 : LPREFIX + len(VAR2)} 
 
     for methodName in cls.__dict__.keys():
         if methodName.startswith(PREFIX):
-            decorate_method(cls, methodName, 'get', create_get)
+            decorate_method(cls, methodName, 'get', create_get_is)
             decorate_method(cls, methodName, 'verify', create_verify)
             decorate_method(cls, methodName, 'verifyNot', create_verifyNot)
             decorate_method(cls, methodName, 'assert', create_assert)
             decorate_method(cls, methodName, 'assertNot', create_assertNot)
             decorate_method(cls, methodName, 'waitFor', create_waitFor)
             decorate_method(cls, methodName, 'waitForNot', create_waitForNot)
-            decorate_method(cls, methodName, 'store', create_store)
-    return cls
-
+            decorate_method(cls, methodName, 'store', create_store)    
+    return cls        
+    
 
 def seleniumcommand(method):
     """Method decorator for selenium commands in SeleniumCommander class.
@@ -413,44 +489,44 @@ class SeleniumDriver(object):
     # Section 2: All wd_SEL*-statements (from which all other methods are created dynamically via decorators)
     ###
 
-    def wd_SEL_TextPresent(self, target, value=None):
+    def SEL_is_TextPresent(self, target, value):
         text = html2text(self.driver.page_source)
-        return True, self._isContained(target, text)
+        return self._isContained(target, text)
 
-    def wd_SEL_ElementPresent(self, target, value=None):
+    def SEL_is_ElementPresent(self, target, value):
         try:
             self._find_target(target)
-            return True, True
+            return True
         except NoSuchElementException:
-            return True, False
+            return False
 
-    def wd_SEL_Attribute(self, target, value):
+    def SEL_get_Attribute(self, target, value):
         target, sep, attr = target.rpartition("@")
         attrValue = self._find_target(target).get_attribute(attr)
         if attrValue is None:
             raise NoSuchAttributeException
         return value, attrValue.strip()
         
-    def wd_SEL_Text(self, target, value):
+    def SEL_get_Text(self, target, value):
         return value, self._find_target(target).text.strip()
         
-    def wd_SEL_Value(self, target, value):
+    def SEL_get_Value(self, target, value):
         return value, self._find_target(target).get_attribute("value").strip()
     
-    def wd_SEL_XpathCount(self, target, value):
+    def SEL_get_XpathCount(self, target, value):
         count = len(self.driver.find_elements_by_xpath(target))
         return int(value), count
 
-    def wd_SEL_Alert(self, target, value=None):
+    def SEL_get_Alert(self, target, value=None):
         alert = Alert(self.driver)
         text = alert.text.strip() 
         alert.accept()
         return target, text
             
-    def wd_SEL_Confirmation(self, target, value=None):
+    def SEL_get_Confirmation(self, target, value=None):
         # Webdriver gives no opportunity to distinguish between alerts and confirmations.
         # Thus they are handled the same way here, although this does not reflect the exact behavior of the IDE
-        return self.wd_SEL_Alert(target, value)
+        return self.SEL_get_Alert(target, value)
    
     ##### Aliases ####
     
@@ -524,9 +600,9 @@ class SeleniumDriver(object):
         
         see: http://release.seleniumhq.org/selenium-remote-control/0.9.2/doc/dotnet/Selenium.html
         """
-        # 1) equality expression (works for booleans, integers, etc)
-        if type(reference) not in [str, unicode]:
-            return reference == data
+        # 1) plain equality comparison
+        if reference not in [str, unicode]:
+            return data == reference 
         # 2) regexp
         elif reference.startswith('regexp:'):
             try:
