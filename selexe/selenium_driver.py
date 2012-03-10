@@ -269,15 +269,17 @@ def seleniumcommand(method):
 
 
 def create_aliases(cls):
-    for methodName in cls.__dict__.keys():
-        for prefix in ["verifyNot", "assertNot", "waitForNot"]:    
-            if re.match(prefix + ".*Present", methodName):
-                method = getattr(cls, methodName)
-                def aliasMethod(self, target, value=None):
-                    method(self, target, value)
-                alias = methodName.replace("Not", "").replace("Present", "NotPresent")
-                setattr(cls, alias, aliasMethod)
+    for methodName in cls.__dict__.keys():    
+        if re.match(r"(verifyNot|assertNot|waitForNot)\w+Present", methodName):
+            alias = methodName.replace("Not", "").replace("Present", "NotPresent")
+            aliasMethod = create_alias_method(getattr(cls, methodName))
+            setattr(cls, alias, aliasMethod)
     return cls
+
+def create_alias_method(method):   
+    def wrappedMethod(self, target, value=None):
+        method(self, target, value)
+    return wrappedMethod
 
 
 ####################################################################################################

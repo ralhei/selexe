@@ -237,15 +237,12 @@ class Test_SeleniumDriver(object):
         
         
     def test_Aliases(self):
-        """ In the IDE there are aliases for "Not" commands which were generated automatically from commands with prefix "is_" 
-        (most likely to increase readability). Currently theses aliases are added manually to our code"""
+        """In the IDE there are aliases for "Not" commands which were generated automatically from commands with prefix "is_" 
+        (most likely to increase readability). We do the same."""
         self.sd('open', '/static/page1')
         self.sd('verifyTextNotPresent', 'H1 texts')
-        self.sd('assertTextNotPresent', 'H1 texts')
-        self.sd('waitForTextNotPresent', 'H1 texts')
-        self.sd('verifyElementNotPresent', 'id=select')
         self.sd('assertElementNotPresent', 'id=select')
-        self.sd('waitForElementNotPresent', 'id=select')
+        self.sd('waitForTextNotPresent', 'H1 texts')
         
         
     def test_PopUp_methods(self):
