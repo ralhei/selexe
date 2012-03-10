@@ -1,7 +1,7 @@
 """
 UT module to test selenium-driver commands
 """
-import sys, pytest, time
+import sys, pytest
 sys.path.insert(0, '..')
 ###
 from selenium import webdriver
@@ -68,31 +68,38 @@ class Test_SeleniumDriver(object):
         with pytest.raises(NoSuchElementException):
             self.sd('verifyText', '//p[@class="class"]')  
         #
+        # check the waitFor methods
+        #
+        # check waiting for an existent text
         self.sd('waitForText', 'css=h1', 'H1 text')
         #
-        # text is inserted 3000 ms after clicking on the button
+        # check waiting for text which is inserted on the page 3000 ms after clicking on a button
         self.sd('click', 'id=textInsertDelay')
         self.sd('waitForTextPresent', 'Text was inserted')
         #
-        # text is deleted 3000 ms after clicking on the button
+        # check waiting for a text which is deleted on the page 3000 ms after clicking on a button
         self.sd('click', 'id=textRemoveDelay')
         self.sd('waitForNotTextPresent', 'Text was inserted')
         #
-        # check that waiting for non-existing text finally raises RuntimeError (after timeout):
+        # check that waiting for non-existing text finally raises RuntimeError a (after timeout):
         with pytest.raises(RuntimeError):
             self.sd('waitForText', 'css=h1', 'H1 WROOOOOONG text', timeout=1000)
         #
-        # check that waiting for existing text with 'waitForNotText' raises RuntimeError (after timeout)
+        # check that waiting for existing text with 'waitForNotText' raises a RuntimeError (after timeout)
         with pytest.raises(RuntimeError):
             self.sd('waitForNotText', 'css=h1', 'H1 text', timeout=1000)
              
     
     def test_Alert_methods(self):
         """check alert methods"""
-        # checking that an alert is found
+        # check that an alert can be found
         self.sd('open', '/static/page1')
         self.sd('clickAndWait', '//input[@type="button" and @value="alert button"]')
         self.sd('assertAlert', 'hello')
+        #
+        # check that a missing alert raises an exception
+        with pytest.raises(NoAlertPresentException):
+            self.sd('assertAlert', 'hello')
         #
         # check that a wrong alert text adds a verification error
         self.sd('click', '//input[@value="alert button"]')
@@ -100,22 +107,17 @@ class Test_SeleniumDriver(object):
         assert self.sd.getVerificationErrors() == ['Actual value "hello" did not match "a wrong text"']
         self.sd.initVerificationErrors()  # reset verification messages
         #
-        # check that a missing alert raises an exception
-        with pytest.raises(NoAlertPresentException):
-            self.sd('assertAlert', 'hello')
-        #
-        # check that a missing alert adds a verification error    
+        # check that a missing alert adds a verification error (added by verify wrapper)     
         self.sd('verifyAlert', 'hello')
         assert self.sd.getVerificationErrors() == ['There were no alerts or confirmations']
         self.sd.initVerificationErrors()  # reset verification messages
         #
-        # check that a missing alert adds a verification error (added by verifyNot Wrapper)   
+        # check that a missing alert adds a verification error (added by verifyNot wrapper)   
         self.sd('verifyNotAlert', 'hello')
         assert self.sd.getVerificationErrors() == ['There were no alerts or confirmations']
         self.sd.initVerificationErrors()  # reset verification messages
         #
-        # checks the confirmation method which is an alias for the alert method
-        # stores it
+        # check the confirmation method which is an alias for the alert method and store the alert text
         self.sd('click', '//input[@value="alert button"]')
         self.sd('storeConfirmation', 'confirmationMsg')
         assert self.sd.storedVariables['confirmationMsg'] == 'hello'
@@ -125,6 +127,7 @@ class Test_SeleniumDriver(object):
         """check the XpathCount method and the associated find_targets method"""
         self.sd('open', '/static/form1')
         # note: this method returns two integers (instead of strings or booleans like all the other return methods)
+        #
         self.sd('assertXpathCount', '//option', "4")
         #
         # check failing for incorrect number of xpathes
@@ -137,35 +140,37 @@ class Test_SeleniumDriver(object):
         """check the select method and the associated _find_children method"""
         self.sd('open', '/static/form1')
         #
-        # test all option locators
-        for optionLocator in ['label1', 'label=label2', 'value=value3', 'id=option4', 'index=1']:
-            self.sd('select', 'id=selectTest', optionLocator)
+        # check that all option locator parameters work as expected
+        optionLocators =[('label1', '1'), ('label=label2', '2'), ('value=value3', '3'), ('id=option4', '4'), ('index=0', '1')]
+        for optionLocator in optionLocators:
+            self.sd('select', 'id=selectTest', optionLocator[0])
+            self.sd('assertAttribute', '//select[@id="selectTest"]/option[' + optionLocator[1] + "]@selected", "true")   
         #
-        # unknown option locator
+        # check failing using unknown option locator parameter
         with pytest.raises(RuntimeError):
             self.sd('select', 'id=selectTest', 'xpath=//option[@id="option3"]')
         #       
-        # test that select fails with false values for option locators     
+        # check failing with correct option locator parameters but incorrect values    
         for optionLocator in ['label', 'label=2', 'value=value', 'id=optio4', 'index=4']:
             with pytest.raises(NoSuchElementException):
                 self.sd('select', 'id=selectTest', optionLocator)
         #        
-        # no select Element
+        # check failing while trying to perform a select command on a non-select element
         with pytest.raises(UnexpectedTagNameException): 
             self.sd('select', 'id=id_submit', "value=value1")
         #    
-        # test find_children method
+        # check the find_children method: finds the option elements of a select node
         #
-        # find children by id
+        # check finding option elements by given id of the select node
         self.sd('select', 'id=selectTest', "value=value1")
         #
-        # find children by xpath
+        # check finding option elements by given xpath of the select node
         self.sd('select', '//select', "value=value2")
         #
-        # find children by name
+        # check finding option elements by given name of the select node
         self.sd('select', 'name=select1', "value=value3")
         #
-        # find children by css
+        # check finding option elements by given css path of the select node
         self.sd('select', 'css=#selectTest', "value=value4")
 
         
@@ -177,26 +182,26 @@ class Test_SeleniumDriver(object):
         with pytest.raises(NoSuchAttributeException):
             self.sd('assertAttribute', '//*[@name="checkbox1"]@checked', 'true')
         #
-        # perform a check command on an unchecked checkbox
+        # perform a check command on unchecked checkbox1
         self.sd('check', '//*[@value="first"]')
         #
         # verify that checkbox1 is checked
         self.sd('assertAttribute', '//*[@name="checkbox1"]@checked', 'true')
         #
-        # perform a check command on a checked checkbox
+        # perform a check command on checked checkbox1
         self.sd('check', '//*[@value="first"]')
         #
         # verify that checkbox1 is (still) checked
         self.sd('assertAttribute', '//*[@name="checkbox1"]@checked', 'true')
         #
-        # perform an uncheck command on an checked checkbox
+        # perform an uncheck command on checked checkbox1
         self.sd('uncheck', '//*[@value="first"]')
         #
         # verify that checkbox1 is unchecked
         with pytest.raises(NoSuchAttributeException):
             self.sd('assertAttribute', '//*[@name="checkbox1"]@checked', 'true')
         #
-        # perform an uncheck command on a unchecked checkbox
+        # perform an uncheck command on unchecked checkbox1
         self.sd('uncheck', '//*[@value="first"]')
         #
         # verify that checkbox1 is (still) unchecked
@@ -212,7 +217,7 @@ class Test_SeleniumDriver(object):
         with pytest.raises(NoSuchAttributeException):
             self.sd('assertAttribute', '//*[@name="checkbox1"]@checked', 'true')
         #
-        # hover the mouse over the checkbox1
+        # hover the mouse over checkbox1
         self.sd('mouseOver', '//*[@name="checkbox1"]')
         #
         # click on the current position
@@ -227,7 +232,7 @@ class Test_SeleniumDriver(object):
         # click on the current position
         ActionChains(self.driver).click().perform()
         #
-        # do an uncheck command on a unchecked checkbox 
+        # verify that checkbox1 is (still) checked
         self.sd('assertAttribute', '//*[@name="checkbox1"]@checked', 'true')
         
         
@@ -247,33 +252,35 @@ class Test_SeleniumDriver(object):
         """check the waitForPopUp and selectWindow methods"""
         self.sd('open', '/static/page1')
         #
-        # open the pop up by clicking on a link
+        # open a pop up by clicking on a link
         self.sd('click', 'link=Test popup')
         #
-        # now waiting for the pop up with standard timeout
+        # check waiting for the pop up with standard timeout
         self.sd('waitForPopUp', "stekie")
         #
-        # is the focus back on the main window? Check smth. on the page.
+        # check that the focus is still on the main window.
         assert self.sd('getText', 'css=h1') == 'H1 text'
         #
-        # waiting for a non-existant pop up with specified timeout = 2.1s which results in two pollings
+        # check waiting for a non-existent pop up with specified timeout = 2.1s which results in two pollings
         with pytest.raises(NoSuchWindowException):
             self.sd('waitForPopUp', "no pop up", "2100")
         #
-        # selecting "null" as target which is not implemented yet
+        # check failing when selecting "null" as target (not implemented yet)
         with pytest.raises(NotImplementedError):    
             self.sd('waitForPopUp', "null")
         #
-        # now switch focus the pop up
+        # switch focus to the pop up
         self.sd('selectWindow', "name=stekie")
+        #
+        # check that text in the pop up can be found.
         assert self.sd('isTextPresent', 'This is a pop up')
         #
-        # now switch focus back to the main window
+        # switch focus back to the main window
         self.sd('selectWindow', "null")
         assert self.sd('getText', 'css=h1') == 'H1 text'
         self.sd('assertNotTextPresent', 'This is a pop up')
         #
-        # using a window locator which is not implemented yet
+        # check failing when using a locator parameter which is not implemented yet
         with pytest.raises(NotImplementedError):
             self.sd('selectWindow', "title=stekie")
     
@@ -282,35 +289,35 @@ class Test_SeleniumDriver(object):
         self.sd('open', '/static/page1')
         """check the elementPresent method"""
         #
-        # check that element can be found
+        # check that an element can be found
         self.sd('verifyElementPresent', '//div[@class="class1"]')
         assert self.sd.getVerificationErrors() == []
         #
-        # element can not be found. Check that the verify wrapper produces the expectant error
+        # check that a missing element adds a verification error
         self.sd('verifyElementPresent', '//div[@class="class"]')
         assert self.sd.getVerificationErrors() == ['false']
         self.sd.initVerificationErrors()  # reset verification messages
         #
-        # element can be found but should not be found. Check that the verify wrapper produces the expectant error
+        # check that an element which should not be present adds a verification error
         self.sd('verifyNotElementPresent', '//div[@class="class1"]')
         assert self.sd.getVerificationErrors() == ['true']
         self.sd.initVerificationErrors()  # reset verification messages              
         #
-        # element can not be found. Check that method catches a NoSuchElementException)
+        # check that a missing element raises an assertion error and not a NoSuchElementException (it is caught in the method)
         with pytest.raises(AssertionError):
             self.sd('assertElementPresent', '//div[@class="class"]')
         #
-        # stores element present == false
+        # check the storing of the result of the ElementPresent method
         self.sd('storeElementPresent', '//div[@class="class"]', 'elementPresent')
         assert self.sd.storedVariables['elementPresent'] == 'false'
             
         
     def test_SeleniumStringPatterns(self):
-        """testing string match parameters regexp:, exact: and glob: in _match and _isContained methods"""
+        """testing string match parameters regexp, exact and glob in _match and _isContained methods"""
         self.sd('open', '/static/page1')
         self.sd('getText', 'css=h1', 'regexp:H1 text')
         #
-        # match - regexp:
+        # method: _match / parameter: regexp
         with pytest.raises(AssertionError):
             self.sd('assertText', 'css=h1', 'regexp:H1 tex')
         self.sd('assertText', 'css=h1', 'regexp:H1 text')
@@ -318,7 +325,7 @@ class Test_SeleniumDriver(object):
         with pytest.raises(AssertionError):
             self.sd('assertText', 'css=h1', 'regexp:H1*text')
         #
-        # match - exact:
+        # method: _match / parameter: exact
         with pytest.raises(AssertionError):
             self.sd('assertText', 'css=h1', 'ecact:H1 tex')
         self.sd('assertText', 'css=h1', 'exact:H1 text')
@@ -327,7 +334,7 @@ class Test_SeleniumDriver(object):
         with pytest.raises(AssertionError):
             self.sd('assertText', 'css=h1', 'exact:H1*text')
         #
-        # match - glob:
+        # method: _match / parameter: glob
         with pytest.raises(AssertionError):
             self.sd('assertText', 'css=h1', 'glob:H1 tex')
         self.sd('assertText', 'css=h1', 'glob:H1 text')
@@ -335,14 +342,14 @@ class Test_SeleniumDriver(object):
             self.sd('assertText', 'css=h1', 'glob:H.* tex\w+')
         self.sd('assertText', 'css=h1', 'glob:H1*text')
         #
-        # isContained - regexp:
+        # method: _isContained / parameter: regexp
         self.sd('assertTextPresent', 'regexp:H1 tex')
         self.sd('assertTextPresent', 'regexp:H1 text')
         self.sd('assertTextPresent', 'regexp:H.* tex\w+')
         with pytest.raises(AssertionError):
             self.sd('assertTextPresent', 'regexp:H1*text')
         #
-        # isContained - exact:
+        # method: _isContained / parameter: exact
         self.sd('assertTextPresent', 'exact:H1 tex')
         self.sd('assertTextPresent', 'exact:H1 text')
         with pytest.raises(AssertionError):
@@ -350,7 +357,7 @@ class Test_SeleniumDriver(object):
         with pytest.raises(AssertionError):
             self.sd('assertTextPresent', 'exact:H1*text')
         #
-        # isContained - glob:
+        # method: _isContained / parameter: glob
         self.sd('assertTextPresent', 'glob:H1 tex')
         self.sd('assertTextPresent', 'glob:H1 text')
         with pytest.raises(AssertionError):
@@ -358,16 +365,16 @@ class Test_SeleniumDriver(object):
         self.sd('assertTextPresent', 'glob:H1*text')
         
         
-    def test_missing_and_wrong_locator_type(self):
+    def test_missing_and_unknown_locator_parameter(self):
         self.sd('open', '/static/form1')
         #
-        # missing locator type: should be resolved to name
+        # check that a missing locator parameter is resolved to name
         self.sd("assertElementPresent" , "text1")
         #
-        # missing locator type: should be resolved to id
+        # check that a missing locator parameter is resolved to id
         self.sd("assertElementPresent" , "id_text1")
         #
-        # wrong locator type should raise an Unexpected TagNameException
+        # check that an unknown parameter raises an Unexpected TagNameException
         with pytest.raises(UnexpectedTagNameException):
             self.sd("assertElementPresent" , "value=first") 
             
@@ -376,38 +383,38 @@ class Test_SeleniumDriver(object):
         ''' testing the selectFrame method'''
         self.sd('open', '/static/page2')
         #
-        # check that text in the first iframe cannot be found
+        # check that text in iframe1 cannot be found
         self.sd("assertTextNotPresent", "This is a text inside the first iframe")
         #
         # select iframe1
         self.sd("selectFrame", "id=iframe1")
         #
-        # check that the text in the selected iframe can be found
+        # check that the text in iframe1 can be found
         self.sd("assertTextPresent", "This is a text inside the first iframe")
         #
         # select iframe3 (nested in iframe1)
         self.sd("selectFrame", "id=iframe3")
         #
-        # check that the text in the selected iframe can be found
+        # check that the text in iframe3 can be found
         self.sd("assertTextPresent", "This is a text inside the third iframe")
         #
-        # using the relative option: parent selection is not implemented yet
+        # check the relative parameter: parent selection is not implemented yet
         with pytest.raises(NotImplementedError):
             self.sd("selectFrame", "relative=parent")
         #
-        # using the relative option: select the top frame
+        # check the relative parameter: select the top frame
         self.sd("selectFrame", "relative=top")
         #
-        # check that text in the top frame can be found
+        # check that a text in the top frame can be found
         self.sd("assertTextPresent", "Default content")
         #
         # select iframe2 by index
         self.sd("selectFrame", "1")
         #
-        # check that the text in the selected iframe can be found
+        # check that the text in iframe2 can be found
         self.sd("assertTextPresent", "This is a text inside the second iframe")
         #
-        # unknown selector for relative option raises a NoSuchFrameException
+        # check that unknown relative parameter raises a NoSuchFrameException
         with pytest.raises(NoSuchFrameException):
             self.sd("selectFrame", "relative=child")
         
@@ -416,19 +423,18 @@ class Test_SeleniumDriver(object):
         ''' testing the value and attribute method'''
         self.sd('open', '/static/form1')
         #
-        # check that the value (of value) can be found and is correct
+        # check that the value of the 'value' attribute can be found and is correct
         self.sd('assertValue', 'id=id_text1', 'input_text1')
         #
-        # value is wrong. Check that the verify wrapper generates the expectant error message.
+        # check that a wrong value adds a verification error
         self.sd('verifyValue', 'id=id_text1', '')
         assert self.sd.getVerificationErrors() == ['Actual value "input_text1" did not match ""']
-        #
         self.sd.initVerificationErrors()  # reset verification messages  
         #
-        # check that the attribute value can be found and is correct
+        # check that the value of the 'type' attribute can be found and is correct
         self.sd('assertAttribute', 'id=id_submit@type', 'submit')
         #
-        # attribute value is wrong. Check that the verify wrapper generates the expectant error message.
+        # check that a wrong value adds a verification error
         self.sd('verifyAttribute', 'id=id_submit@type', 'submits')
         assert self.sd.getVerificationErrors() == ['Actual value "submit" did not match "submits"']
         self.sd.initVerificationErrors()  # reset verification messages  
@@ -437,8 +443,12 @@ class Test_SeleniumDriver(object):
     def test_Type_method(self):
         ''' testing the type method'''
         self.sd('open', '/static/form1')
+        #
+        # type a string into an empty text field
         self.sd('type', 'id=id_text1', 'a new text')
-        self.sd('click', 'id=id_submit')
+        #
+        # assert that the text field's value attribute was filled correctly
+        assert self.sd('getAttribute', 'id=id_text1@value') == 'a new text'
         
         
     def test_Command_NotImplementedError(self):

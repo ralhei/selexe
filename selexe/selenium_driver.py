@@ -1,7 +1,7 @@
 import logging, time, re, types
 ###
 from selenium.common.exceptions import NoSuchWindowException, NoSuchElementException, NoAlertPresentException, \
-UnexpectedTagNameException,  NoSuchFrameException, NoSuchAttributeException 
+UnexpectedTagNameException, NoSuchFrameException, NoSuchAttributeException 
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.alert import Alert
@@ -107,7 +107,6 @@ def create_assert(func, var):
     """
     def wrap_func_get(self, *args, **kw):
         reference, data = func(self, *args, **kw)
-        print "a"
         assert self._matches(reference, data)
 
     def wrap_func_is(self, *args, **kw):
@@ -269,8 +268,20 @@ def seleniumcommand(method):
     return seleniumMethod
 
 
-####################################################################################################
+def create_aliases(cls):
+    for methodName in cls.__dict__.keys():
+        for prefix in ["verifyNot", "assertNot", "waitForNot"]:    
+            if re.match(prefix + ".*Present", methodName):
+                method = getattr(cls, methodName)
+                def aliasMethod(self, target, value=None):
+                    method(self, target, value)
+                alias = methodName.replace("Not", "").replace("Present", "NotPresent")
+                setattr(cls, alias, aliasMethod)
+    return cls
 
+
+####################################################################################################
+@create_aliases
 @create_selenium_methods
 class SeleniumDriver(object):
     def __init__(self, driver, base_url):
@@ -485,11 +496,12 @@ class SeleniumDriver(object):
     ###
     # Section 2: All wd_SEL*-statements (from which all other methods are created dynamically via decorators)
     ###
-
+    
+        
     def SEL_is_TextPresent(self, target, value):
         text = html2text(self.driver.page_source)
         return self._isContained(target, text)
-
+    
     def SEL_is_ElementPresent(self, target, value):
         try:
             self._find_target(target)
@@ -527,23 +539,7 @@ class SeleniumDriver(object):
    
     ##### Aliases ####
     
-    def verifyTextNotPresent(self, target, value=None):
-        return self.verifyNotTextPresent(target, value)
     
-    def assertTextNotPresent(self, target, value=None):
-        return self.assertNotTextPresent(target, value)
-    
-    def waitForTextNotPresent(self, target, value=None):
-        return self.waitForNotTextPresent(target, value)
-    
-    def verifyElementNotPresent(self, target, value=None):
-        return self.verifyNotElementPresent(target, value)
-    
-    def assertElementNotPresent(self, target, value=None):
-        return self.assertNotElementPresent(target, value)
-    
-    def waitForElementNotPresent(self, target, value=None):
-        return self.waitForNotElementPresent(target, value)
     
         ################# Some helper Functions ##################
 
