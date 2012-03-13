@@ -14,12 +14,8 @@ from selenium.common.exceptions import NoSuchFrameException
 from selenium.common.exceptions import NoSuchAttributeException
 from selenium.webdriver.common.action_chains import ActionChains
 
-###
-# the fololowing imports provide a setup function to fire up and shutddown the (bottle) testserver!
-from test_execute_sel_files import setup_module, teardown_module
 
 BASE_URI = 'http://localhost:8080'
-
 
 
 class Test_SeleniumDriver(object):

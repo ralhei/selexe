@@ -12,6 +12,8 @@ from html2text import html2text
 #globals
 # time until timeout in milliseconds
 TIMEOUT = 20000
+# time for searching for a html element in seconds
+IMPLICITLY_WAIT = 0
 
 
 
@@ -271,15 +273,12 @@ def seleniumcommand(method):
 def create_aliases(cls):
     for methodName in cls.__dict__.keys():    
         if re.match(r"(verifyNot|assertNot|waitForNot)\w+Present", methodName):
+            method = getattr(cls, methodName)
+            def aliasMethod(self, target, value=None):
+                return method(self, target, value)
             alias = methodName.replace("Not", "").replace("Present", "NotPresent")
-            aliasMethod = create_alias_method(getattr(cls, methodName))
             setattr(cls, alias, aliasMethod)
     return cls
-
-def create_alias_method(method):   
-    def wrappedMethod(self, target, value=None):
-        method(self, target, value)
-    return wrappedMethod
 
 
 ####################################################################################################
@@ -288,7 +287,7 @@ def create_alias_method(method):
 class SeleniumDriver(object):
     def __init__(self, driver, base_url):
         self.driver = driver
-        self.driver.implicitly_wait(0)
+        self.driver.implicitly_wait(IMPLICITLY_WAIT)
         self.base_url = base_url
         self.initVerificationErrors()
         self._importUserFunctions()
@@ -449,8 +448,10 @@ class SeleniumDriver(object):
 
     @seleniumcommand
     def mouseOut(self, target, value=None):
-        size = self._find_target(target).size
-        ActionChains(self.driver).move_by_offset(size["width"], 0).perform()
+        target_elem = self._find_target(target)
+        actions = ActionChains(self.driver)
+        actions.move_to_element(target_elem)
+        actions.move_by_offset(target_elem.size["width"], 0).perform()
 
     @seleniumcommand
     def waitForPopUp(self, target, value):
@@ -538,12 +539,9 @@ class SeleniumDriver(object):
         # Webdriver gives no opportunity to distinguish between alerts and confirmations.
         # Thus they are handled the same way here, although this does not reflect the exact behavior of the IDE
         return self.SEL_get_Alert(target, value)
-   
-    ##### Aliases ####
+
     
-    
-    
-        ################# Some helper Functions ##################
+    ################# Some helper Functions ##################
 
 
     def _tag_and_value(self, tvalue):
