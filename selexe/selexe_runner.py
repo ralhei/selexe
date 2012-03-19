@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import sys, os, logging
+import sys, os, logging, pdb
 ###
 from selenium import webdriver
 from parse_sel import SeleniumParser
@@ -28,27 +28,17 @@ class SelexeRunner(object):
         logging.info('Selexe working on file %s' % self.filename)
         fp = open(self.filename)
         seleniumParser = SeleniumParser(fp)
-        exe = self._wrapExecution if not self.pmd else self._wrapExecutionPDB
         driver = webdriver.Firefox()
         baseURI = self.baseuri or seleniumParser.baseuri
         if baseURI.endswith('/'):
             baseURI = baseURI[:-1]
         logging.info('baseURI: %s' % baseURI)
         try:
-            driver.implicitly_wait(30)
+            driver.implicitly_wait(3)
             sd = SeleniumDriver(driver, baseURI)
-            return exe(seleniumParser, sd)
+            return self._wrapExecution(seleniumParser, sd)
         finally:
             driver.quit()
-
-    def _wrapExecutionPDB(self, seleniumParser, sd):
-        """Run selenium execution, jump into post-mortem debugger in case of an error"""
-        try:
-            return self._wrapExecution(seleniumParser, sd)
-        except:
-            import pdb
-            exc = sys.exc_info()
-            pdb.post_mortem(exc[2])
 
     def _wrapExecution(self, seleniumParser, sd):
         """Wrap execution of selenium tests in setUp and tearDown functions if available"""
@@ -58,8 +48,15 @@ class SelexeRunner(object):
             logging.info("setUp() finished")
             # remove all verification errors possibly generated during setUpFunc()
             sd.initVerificationErrors()
+
         try:
             return self._executeSelenium(seleniumParser, sd)
+        except:
+            if self.pmd:
+                exc = sys.exc_info()
+                pdb.post_mortem(exc[2])
+            else:
+                raise
         finally:
             if self.tearDownFunc:
                 logging.info("Calling tearDown()")
@@ -69,7 +66,11 @@ class SelexeRunner(object):
     def _executeSelenium(self, seleniumParser, sd):
         """Execute the actual selenium statements found in *sel file"""
         for command, target, value in seleniumParser:
-            sd(command, target, value)
+            try:
+                sd(command, target, value)
+            except:
+                logging.info('Command %s(%r, target=%r) failed.' % (command, target, value))
+                raise
         return sd.getVerificationErrors()
 
 
@@ -90,13 +91,13 @@ def findFixtureFunctions(modulePath=None):
         setUpFunc = getattr(mod, 'setUp', None)
         tearDownFunc = getattr(mod, 'tearDown', None)
         if setUpFunc or tearDownFunc:
-            logging.debug('Using fixtures module %s (setUp: %s, tearDown: %s)' %
-                          (modulePath, setUpFunc is not None, tearDownFunc is not None))
+            logging.info('Using fixtures module %s (setUp: %s, tearDown: %s)' %
+                        (modulePath, setUpFunc is not None, tearDownFunc is not None))
         else:
             logging.warning('Successfully imported fixtures module %s, but found no setUp or tearDown functions' %
                             modulePath)
     else:
-        logging.debug('Using no fixtures')
+        logging.info('Using no fixtures')
         setUpFunc, tearDownFunc = None, None
     return setUpFunc, tearDownFunc
 

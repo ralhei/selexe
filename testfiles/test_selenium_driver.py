@@ -5,7 +5,7 @@ import sys, py.test
 sys.path.insert(0, '..')
 ###
 from selenium import webdriver
-from selexe.selenium_driver import SeleniumDriver
+from selexe import selenium_driver
 from selenium.common.exceptions import NoSuchElementException
 from selenium.common.exceptions import NoAlertPresentException
 from selenium.common.exceptions import NoSuchWindowException
@@ -14,14 +14,14 @@ from selenium.common.exceptions import NoSuchWindowException
 from test_execute_sel_files import setup_module, teardown_module
 
 BASE_URI = 'http://localhost:8080'
-
+selenium_driver.WAIT_FOR_TIMEOUT = 1000  # during testing only wait 1sec until timeout should be raised
 
 
 class Test_SeleniumDriver(object):
     def setup_method(self, method):
         self.driver = webdriver.Firefox()
         self.driver.implicitly_wait(30)
-        self.sd = SeleniumDriver(self.driver, BASE_URI)
+        self.sd = selenium_driver.SeleniumDriver(self.driver, BASE_URI)
 
     def teardown_method(self, method):
         self.driver.quit()
@@ -62,22 +62,22 @@ class Test_SeleniumDriver(object):
         #
         # check that waiting for non-existing text finally raises RuntimeError (after timeout):
         with py.test.raises(RuntimeError):
-            self.sd('waitForText', 'css=h1', 'H1 WROOOOOONG text', timeout=1)
+            self.sd('waitForText', 'css=h1', 'H1 WROOOOOONG text')
         #
         # check that waiting for existing text with 'waitForNotText' raises RuntimeError (after timeout)
         with py.test.raises(RuntimeError):
-            self.sd('waitForNotText', 'css=h1', 'H1 text', timeout=1)
+            self.sd('waitForNotText', 'css=h1', 'H1 text')
             
     
     def test_Alert_methods(self):
         """check alert methods"""
         # testing alert method after clicking on a button which opens an alert window
         self.sd('open', '/static/page1')
-        self.sd('click', '//input[@type="button"]')
+        self.sd('click', 'id=alert-button')
         self.sd('assertAlert', 'hello')
         #
         # checking that a wrong text adds a verification error
-        self.sd('click', '//input[@type="button"]')
+        self.sd('click', 'id=alert-button')
         self.sd('verifyAlert', 'a wrong text')
         assert self.sd.getVerificationErrors() == ['Actual value "hello" did not match "a wrong text"']
         self.sd.initVerificationErrors()  # reset verification messages
@@ -95,9 +95,15 @@ class Test_SeleniumDriver(object):
         assert self.sd.getVerificationErrors() == ['There were no alerts or confirmations']
         self.sd.initVerificationErrors()  # reset verification messages
         #
+        # Check that the message of the alert window gets stored
+        self.sd('click', 'id=alert-button')
+        self.sd('storeAlert', 'alert-msg')
+        assert self.sd.storedVariables['alert-msg'] == 'hello'
+        #
         # testing the confirmation method which is just an alias for the alert method
-        self.sd('click', '//input[@type="button"]')
-        self.sd('storeConfirmation', 'confirmationMessagePresent')
+        self.sd('click', 'id=alert-button')
+        self.sd('storeConfirmation', 'confirmation-msg')
+        assert self.sd.storedVariables['confirmation-msg'] == 'hello'
         
             
     def test_XpathCount_method(self):
@@ -113,7 +119,7 @@ class Test_SeleniumDriver(object):
         
     
     def test_Select_method(self):
-        """check select method and the associated find_children method"""
+        """check select method and the associated find_children method (for selection lists / drop-downs)"""
         self.sd('open', '/static/form1')
         #
         # test all option locators
@@ -148,7 +154,7 @@ class Test_SeleniumDriver(object):
             self.sd('select', 'value=selectTest', "value=value1")
         
     def test_Check_methods(self):
-        """test the uncheck and check method"""
+        """test the uncheck and check method (for checkboxes)"""
         self.sd('open', '/static/form1')
         #
         # testing the check method
@@ -197,7 +203,7 @@ class Test_SeleniumDriver(object):
         #
         # now switch focus the pop up
         self.sd('selectWindow', "name=stekie")
-        assert self.sd('getTextPresent', 'This is a pop up')
+        assert self.sd('isTextPresent', 'This is a pop up')
         #
         # now switch focus back to the main window
         self.sd('selectWindow', "null")
