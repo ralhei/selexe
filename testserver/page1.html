@@ -1,27 +1,51 @@
 <html>
-    <head>
+	<head>
         <script TYPE="text/javascript">
-        <!--
             function popup(mylink, windowname) {
                 if (!window.focus) return true;
                 var href;
                 if (typeof(mylink) == 'string')
-                    href=mylink;
+                    href = mylink;
                 else
-                    href=mylink.href;
-                window.open(href, windowname, 'width=400,height=200,scrollbars=yes');
+                    href = mylink.href;
+                window.open(href, windowname, 'width=400, height=200, scrollbars=yes');
                 return false;
             }
-        //-->
         </script>
+        <script TYPE="text/javascript">
+        	function insertText(time) {
+        		setTimeout(function() { 
+        			var p2 = document.getElementsByTagName('p')[0];
+					var newP = document.createElement("p");
+					var newT = document.createTextNode('Text was inserted');
+					newP.appendChild(newT);
+					p2.parentNode.insertBefore(newP,p2);
+        		}, time)
+        	}
+		</script>
+		<script type="text/javascript">
+			function removeText(time) {
+				setTimeout(function() { 
+					nodes = document.getElementsByTagName('p');
+					if (nodes.length > 1) {
+						document.body.removeChild(nodes[0]);
+					} else {
+						alert("You can not delete the last text node") 
+					}
+				}, time)
+			}
+</script> 
     </head>
     <body>
         <h1>H1 text</h1>
         <div id="div1">DIV 1</div>
-        <p class="class1">CLASS 1</p>
+        <div class="class1">CLASS 1</div>
         <a href="#">A link</a>
-        <a href="popupbasic" id=popup onClick="return popup(this, 'stekie')">Test popup</a>
+        <a href="popupbasic" id="popup" onClick="return popup(this, 'stekie')">Test popup</a>
         <p>This is some arbitrary text to check for verifyTexts</p>
         <input type="button" onclick="alert('hello');" id="alert-button" value="alert button" />
+        <input type="button" id="alertButton" onclick="alert('hello');" value="alert button" />
+		<br/>
+		<input type="button" id="textRemoveDelay" value="Push this button to delete a text in 3000 milliseconds" onClick="removeText(3000);">
     </body>
 </html>

@@ -1,7 +1,7 @@
 """
 UT functions to test loading and execution of pure selenese files
 """
-import sys, subprocess
+import sys, subprocess, time
 ###
 from selenium.common.exceptions import NoSuchElementException
 ###
@@ -13,7 +13,7 @@ def setup_module():
     testserver = subprocess.Popen(['python', 'testserver.py'], cwd='../testserver',
                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     err = []
-    for i in range(3):  # read max. 3 lines from stderr
+    '''for i in range(3):  # read max. 3 lines from stderr
         s = testserver.stderr.readline()
         err.append(s)
         if s.startswith('Listening on http'):
@@ -24,7 +24,7 @@ def setup_module():
         sys.stderr.write('\nError: Testserver (bottle.py) is not starting up properly! Messages:\n\n')
         for i in err:
             sys.stderr.write(i)
-        sys.exit(1)
+        sys.exit(1)'''
 
 
 def teardown_module():
