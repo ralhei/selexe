@@ -1,11 +1,11 @@
 """
 UT module to test selenium-driver commands
 """
-import sys, pytest
+import sys, py.test
 sys.path.insert(0, '..')
 ###
 from selenium import webdriver
-from selexe.selenium_driver import SeleniumDriver
+from selexe import selenium_driver
 from selenium.common.exceptions import NoSuchElementException
 from selenium.common.exceptions import NoAlertPresentException
 from selenium.common.exceptions import NoSuchWindowException
@@ -22,8 +22,8 @@ BASE_URI = 'http://localhost:8080'
 class Test_SeleniumDriver(object):
     def setup_method(self, method):
         self.driver = webdriver.Firefox()
-        self.driver.implicitly_wait(30)
-        self.sd = SeleniumDriver(self.driver, BASE_URI)
+        self.sd = selenium_driver.SeleniumDriver(self.driver, BASE_URI)
+        self.sd.setTimeoutAndPoll(1000, 0.2) # during testing only wait 1sec until timeout should be raised
 
     def teardown_method(self, method):
         self.driver.quit()
@@ -50,11 +50,11 @@ class Test_SeleniumDriver(object):
         self.sd('assertText', 'css=h1', 'H1 text')
         #
         # check that wrong text raises AssertionError
-        with pytest.raises(AssertionError):
+        with py.test.raises(AssertionError):
             self.sd('assertText', 'css=h1', 'H1 WROOOOOONG text')
         #
         # check that correct text raises AssertionError for 'assertNotText'
-        with pytest.raises(AssertionError):
+        with py.test.raises(AssertionError):
             self.sd('assertNotText', 'css=h1', 'H1 text')
         #
         self.sd('storeText', 'css=h1', 'h1content')
@@ -62,7 +62,7 @@ class Test_SeleniumDriver(object):
         self.sd('assertText', 'css=h1', '${h1content}')
         #
         # check that a NoSuchElmenentException is not caught
-        with pytest.raises(NoSuchElementException):
+        with py.test.raises(NoSuchElementException):
             self.sd('verifyText', '//p[@class="class"]')  
         #
         # check the waitFor methods
@@ -70,23 +70,34 @@ class Test_SeleniumDriver(object):
         # check waiting for an existent text
         self.sd('waitForText', 'css=h1', 'H1 text')
         #
+        # check that waiting for non-existing text finally raises RuntimeError (after timeout):
+        with py.test.raises(RuntimeError):
+            self.sd('waitForText', 'css=h1', 'H1 WROOOOOONG text')
+        #
+        # check that waiting for existing text with 'waitForNotText' raises RuntimeError (after timeout)
+        with py.test.raises(RuntimeError):
+            self.sd('waitForNotText', 'css=h1', 'H1 text')
+            
         # check waiting for text which is inserted on the page 3000 ms after clicking on a button
+        self.sd.setTimeoutAndPoll(10000, 0.2)
         self.sd('click', 'id=textInsertDelay')
-        self.sd('waitForTextPresent', 'Text was inserted')
+        self.sd('waitForTextPresent', 'Text was inserted', )
         #
         # check waiting for a text which is deleted on the page 3000 ms after clicking on a button
         self.sd('click', 'id=textRemoveDelay')
         self.sd('waitForNotTextPresent', 'Text was inserted')
+        self.sd.setTimeoutAndPoll(1000, 0.2)
         #
         # check that waiting for non-existing text finally raises RuntimeError a (after timeout):
-        with pytest.raises(RuntimeError):
-            self.sd('waitForText', 'css=h1', 'H1 WROOOOOONG text', timeout=1)
+        with py.test.raises(RuntimeError):
+            self.sd('waitForText', 'css=h1', 'H1 WROOOOOONG text')
         #
         # check that waiting for existing text with 'waitForNotText' raises a RuntimeError (after timeout)
-        with pytest.raises(RuntimeError):
-            self.sd('waitForNotText', 'css=h1', 'H1 text', timeout=1)
+        with py.test.raises(RuntimeError):
+            self.sd('waitForNotText', 'css=h1', 'H1 text')
+
              
-    
+
     def test_Alert_methods(self):
         """check alert methods"""
         # check that an alert can be found
@@ -95,7 +106,7 @@ class Test_SeleniumDriver(object):
         self.sd('assertAlert', 'hello')
         #
         # check that a missing alert raises an exception
-        with pytest.raises(NoAlertPresentException):
+        with py.test.raises(NoAlertPresentException):
             self.sd('assertAlert', 'hello')
         #
         # check that a wrong alert text adds a verification error
@@ -114,11 +125,15 @@ class Test_SeleniumDriver(object):
         assert self.sd.getVerificationErrors() == ['There were no alerts or confirmations']
         self.sd.initVerificationErrors()  # reset verification messages
         #
-        # check the confirmation method which is an alias for the alert method and store the alert text
+        # Check that the message of the alert window gets stored
         self.sd('click', '//input[@value="alert button"]')
-        self.sd('storeConfirmation', 'confirmationMsg')
-        assert self.sd.storedVariables['confirmationMsg'] == 'hello'
-        
+        self.sd('storeAlert', 'alertmsg')
+        assert self.sd.storedVariables['alertmsg'] == 'hello'
+        #
+        # check the confirmation method which is an alias for the alert method
+        self.sd('click', '//input[@value="alert button"]')
+        self.sd('assertConfirmation', 'hello')
+
             
     def test_XpathCount_method(self):
         """check the XpathCount method and the associated find_targets method"""
@@ -134,7 +149,7 @@ class Test_SeleniumDriver(object):
         
     
     def test_Select_method(self):
-        """check the select method and the associated _find_children method"""
+        """check select method and the associated find_children method (for selection lists / drop-downs)"""
         self.sd('open', '/static/form1')
         #
         # check that all option locator parameters work as expected
@@ -144,16 +159,16 @@ class Test_SeleniumDriver(object):
             self.sd('assertAttribute', '//select[@id="selectTest"]/option[' + optionLocator[1] + "]@selected", "true")   
         #
         # check failing using unknown option locator parameter
-        with pytest.raises(RuntimeError):
+        with py.test.raises(RuntimeError):
             self.sd('select', 'id=selectTest', 'xpath=//option[@id="option3"]')
         #       
         # check failing with correct option locator parameters but incorrect values    
         for optionLocator in ['label', 'label=2', 'value=value', 'id=optio4', 'index=4']:
-            with pytest.raises(NoSuchElementException):
+            with py.test.raises(NoSuchElementException):
                 self.sd('select', 'id=selectTest', optionLocator)
         #        
         # check failing while trying to perform a select command on a non-select element
-        with pytest.raises(UnexpectedTagNameException): 
+        with py.test.raises(UnexpectedTagNameException): 
             self.sd('select', 'id=id_submit', "value=value1")
         #    
         # check the find_children method: finds the option elements of a select node
@@ -172,11 +187,11 @@ class Test_SeleniumDriver(object):
 
         
     def test_Check_methods(self):
-        """check the uncheck and check methods"""
+        """test the uncheck and check method (for checkboxes)"""
         self.sd('open', '/static/form1')
         #
         # verify that checkbox1 is unchecked
-        with pytest.raises(NoSuchAttributeException):
+        with py.test.raises(NoSuchAttributeException):
             self.sd('assertAttribute', '//*[@name="checkbox1"]@checked', 'true')
         #
         # perform a check command on unchecked checkbox1
@@ -195,14 +210,14 @@ class Test_SeleniumDriver(object):
         self.sd('uncheck', '//*[@value="first"]')
         #
         # verify that checkbox1 is unchecked
-        with pytest.raises(NoSuchAttributeException):
+        with py.test.raises(NoSuchAttributeException):
             self.sd('assertAttribute', '//*[@name="checkbox1"]@checked', 'true')
         #
         # perform an uncheck command on unchecked checkbox1
         self.sd('uncheck', '//*[@value="first"]')
         #
         # verify that checkbox1 is (still) unchecked
-        with pytest.raises(NoSuchAttributeException):
+        with py.test.raises(NoSuchAttributeException):
             self.sd('assertAttribute', '//*[@name="checkbox1"]@checked', 'true')
             
             
@@ -211,7 +226,7 @@ class Test_SeleniumDriver(object):
         self.sd('open', '/static/form1')
         #
         # check that checkbox1 is unchecked
-        with pytest.raises(NoSuchAttributeException):
+        with py.test.raises(NoSuchAttributeException):
             self.sd('assertAttribute', '//*[@name="checkbox1"]@checked', 'true')
         #
         # hover the mouse over checkbox1
@@ -256,11 +271,11 @@ class Test_SeleniumDriver(object):
         assert self.sd('getText', 'css=h1') == 'H1 text'
         #
         # check waiting for a non-existent pop up with specified timeout = 2.1s which results in two pollings
-        with pytest.raises(NoSuchWindowException):
+        with py.test.raises(NoSuchWindowException):
             self.sd('waitForPopUp', "no pop up", "2100")
         #
         # check failing when selecting "null" as target (not implemented yet)
-        with pytest.raises(NotImplementedError):    
+        with py.test.raises(NotImplementedError):    
             self.sd('waitForPopUp', "null")
         #
         # switch focus to the pop up
@@ -275,7 +290,7 @@ class Test_SeleniumDriver(object):
         self.sd('assertNotTextPresent', 'This is a pop up')
         #
         # check failing when using a locator parameter which is not implemented yet
-        with pytest.raises(NotImplementedError):
+        with py.test.raises(NotImplementedError):
             self.sd('selectWindow', "title=stekie")
     
             
@@ -298,12 +313,12 @@ class Test_SeleniumDriver(object):
         self.sd.initVerificationErrors()  # reset verification messages              
         #
         # check that a missing element raises an assertion error and not a NoSuchElementException (it is caught in the method)
-        with pytest.raises(AssertionError):
+        with py.test.raises(AssertionError):
             self.sd('assertElementPresent', '//div[@class="class"]')
         #
         # check the storing of the result of the ElementPresent method
         self.sd('storeElementPresent', '//div[@class="class"]', 'elementPresent')
-        assert self.sd.storedVariables['elementPresent'] == 'false'
+        assert self.sd.storedVariables['elementPresent'] == 'False'
             
         
     def test_SeleniumStringPatterns(self):
@@ -312,27 +327,27 @@ class Test_SeleniumDriver(object):
         self.sd('getText', 'css=h1', 'regexp:H1 text')
         #
         # method: _match / parameter: regexp
-        with pytest.raises(AssertionError):
+        with py.test.raises(AssertionError):
             self.sd('assertText', 'css=h1', 'regexp:H1 tex')
         self.sd('assertText', 'css=h1', 'regexp:H1 text')
         self.sd('assertText', 'css=h1', 'regexp:H.* tex\w+')
-        with pytest.raises(AssertionError):
+        with py.test.raises(AssertionError):
             self.sd('assertText', 'css=h1', 'regexp:H1*text')
         #
         # method: _match / parameter: exact
-        with pytest.raises(AssertionError):
+        with py.test.raises(AssertionError):
             self.sd('assertText', 'css=h1', 'ecact:H1 tex')
         self.sd('assertText', 'css=h1', 'exact:H1 text')
-        with pytest.raises(AssertionError):
+        with py.test.raises(AssertionError):
             self.sd('assertText', 'css=h1', 'exact:H.* tex\w+')
-        with pytest.raises(AssertionError):
+        with py.test.raises(AssertionError):
             self.sd('assertText', 'css=h1', 'exact:H1*text')
         #
         # method: _match / parameter: glob
-        with pytest.raises(AssertionError):
+        with py.test.raises(AssertionError):
             self.sd('assertText', 'css=h1', 'glob:H1 tex')
         self.sd('assertText', 'css=h1', 'glob:H1 text')
-        with pytest.raises(AssertionError):
+        with py.test.raises(AssertionError):
             self.sd('assertText', 'css=h1', 'glob:H.* tex\w+')
         self.sd('assertText', 'css=h1', 'glob:H1*text')
         #
@@ -340,21 +355,21 @@ class Test_SeleniumDriver(object):
         self.sd('assertTextPresent', 'regexp:H1 tex')
         self.sd('assertTextPresent', 'regexp:H1 text')
         self.sd('assertTextPresent', 'regexp:H.* tex\w+')
-        with pytest.raises(AssertionError):
+        with py.test.raises(AssertionError):
             self.sd('assertTextPresent', 'regexp:H1*text')
         #
         # method: _isContained / parameter: exact
         self.sd('assertTextPresent', 'exact:H1 tex')
         self.sd('assertTextPresent', 'exact:H1 text')
-        with pytest.raises(AssertionError):
+        with py.test.raises(AssertionError):
             self.sd('assertTextPresent', 'exact:H.* tex\w+')
-        with pytest.raises(AssertionError):
+        with py.test.raises(AssertionError):
             self.sd('assertTextPresent', 'exact:H1*text')
         #
         # method: _isContained / parameter: glob
         self.sd('assertTextPresent', 'glob:H1 tex')
         self.sd('assertTextPresent', 'glob:H1 text')
-        with pytest.raises(AssertionError):
+        with py.test.raises(AssertionError):
             self.sd('assertTextPresent', 'glob:H.* tex\w+')
         self.sd('assertTextPresent', 'glob:H1*text')
         
@@ -369,7 +384,7 @@ class Test_SeleniumDriver(object):
         self.sd("assertElementPresent" , "id_text1")
         #
         # check that an unknown parameter raises an Unexpected TagNameException
-        with pytest.raises(UnexpectedTagNameException):
+        with py.test.raises(UnexpectedTagNameException):
             self.sd("assertElementPresent" , "value=first") 
             
             
@@ -393,7 +408,7 @@ class Test_SeleniumDriver(object):
         self.sd("assertTextPresent", "This is a text inside the third iframe")
         #
         # check the relative parameter: parent selection is not implemented yet
-        with pytest.raises(NotImplementedError):
+        with py.test.raises(NotImplementedError):
             self.sd("selectFrame", "relative=parent")
         #
         # check the relative parameter: select the top frame
@@ -409,7 +424,7 @@ class Test_SeleniumDriver(object):
         self.sd("assertTextPresent", "This is a text inside the second iframe")
         #
         # check that unknown relative parameter raises a NoSuchFrameException
-        with pytest.raises(NoSuchFrameException):
+        with py.test.raises(NoSuchFrameException):
             self.sd("selectFrame", "relative=child")
         
         
@@ -447,6 +462,6 @@ class Test_SeleniumDriver(object):
         
     def test_Command_NotImplementedError(self):
         ''' checking that a non-existent command raises a NotImplementedError'''
-        with pytest.raises(NotImplementedError):
+        with py.test.raises(NotImplementedError):
             self.sd('myNewCommand', 'action')
         
