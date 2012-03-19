@@ -14,6 +14,7 @@ from selenium.common.exceptions import NoSuchFrameException
 from selenium.common.exceptions import NoSuchAttributeException
 from selenium.webdriver.common.action_chains import ActionChains
 
+from test_execute_sel_files import setup_module, teardown_module
 
 BASE_URI = 'http://localhost:8080'
 
@@ -79,11 +80,11 @@ class Test_SeleniumDriver(object):
         #
         # check that waiting for non-existing text finally raises RuntimeError a (after timeout):
         with pytest.raises(RuntimeError):
-            self.sd('waitForText', 'css=h1', 'H1 WROOOOOONG text', timeout=1000)
+            self.sd('waitForText', 'css=h1', 'H1 WROOOOOONG text', timeout=1)
         #
         # check that waiting for existing text with 'waitForNotText' raises a RuntimeError (after timeout)
         with pytest.raises(RuntimeError):
-            self.sd('waitForNotText', 'css=h1', 'H1 text', timeout=1000)
+            self.sd('waitForNotText', 'css=h1', 'H1 text', timeout=1)
              
     
     def test_Alert_methods(self):

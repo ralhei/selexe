@@ -10,10 +10,11 @@ from userfunctions import Userfunctions
 from html2text import html2text
 
 #globals
-# time until timeout in milliseconds
-TIMEOUT = 20000
+# time until timeout in seconds
+TIMEOUT = 20
 # time for searching for a html element in seconds
 IMPLICITLY_WAIT = 0
+POLL = 0.5
 
 
 
@@ -141,24 +142,24 @@ def create_waitFor(func, var):
     """
     def wrap_func_get(self, *args, **kw):
         timeout = kw.pop('timeout', TIMEOUT)
-        for i in range (timeout / 1000):
+        for i in range (int(timeout / POLL)):
             try:
                 reference, data = func(self, *args, **kw)
                 assert self._matches(reference, data)
                 break
             except AssertionError:
-                time.sleep(1)
+                time.sleep(POLL)
         else:
             raise RuntimeError("Timed out after %d ms" % timeout)
 
     def wrap_func_is(self, *args, **kw):
         timeout = kw.pop('timeout', TIMEOUT)
-        for i in range (timeout / 1000):
+        for i in range (int(timeout / POLL)):
             try:
                 assert func(self, *args, **kw)
                 break
             except AssertionError:
-                time.sleep(1)
+                time.sleep(POLL)
         else:
             raise RuntimeError("Timed out after %d ms" % timeout)
     
@@ -172,25 +173,25 @@ def create_waitForNot(func, var):
     """
     def wrap_func_get(self, *args, **kw):
         timeout = kw.pop('timeout', TIMEOUT)
-        for i in range (timeout / 1000):
+        for i in range (int(timeout / POLL)):
             try:
                 reference, data = func(self, *args, **kw)
                 assert not self._matches(reference, data)
                 break
             except AssertionError:
-                time.sleep(1)
+                time.sleep(POLL)
         else:
             raise RuntimeError("Timed out after %d ms" % timeout)
         
 
     def wrap_func_is(self, *args, **kw):
         timeout = kw.pop('timeout', TIMEOUT)
-        for i in range (timeout / 1000):
+        for i in range (int(timeout / POLL)):
             try:
                 assert not func(self, *args, **kw)
                 break
             except AssertionError:
-                time.sleep(1)
+                time.sleep(POLL)
         else:
             raise RuntimeError("Timed out after %d ms" % timeout)
         
@@ -456,18 +457,18 @@ class SeleniumDriver(object):
     @seleniumcommand
     def waitForPopUp(self, target, value):
         try:
-            timeout = int(value)
+            timeout = int(value) / 1000
         except (ValueError, TypeError):
             timeout = TIMEOUT
         if target in ("null", "0"):
             raise NotImplementedError('"null" or "0" are currently not available as pop up locators')
-        for i in range(timeout / 1000):
+        for i in range(timeout / POLL):
             try:
                 self.driver.switch_to_window(target)
                 self.driver.switch_to_window(0)
                 break
             except NoSuchWindowException:
-                time.sleep(1)
+                time.sleep(POLL)
         else:
             raise NoSuchWindowException("Timed out after %d ms" % timeout)
 
