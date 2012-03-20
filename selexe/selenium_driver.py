@@ -105,7 +105,6 @@ def create_waitFor(func):
     Decorator to convert a test method of class SeleniumCommander (starting with 'wd_SEL*') into a Selenium
     'waitFor*' function.
     """
-
     def wrap_func(self, target, value=None):
         for i in range (self.repeat):
             try: 
@@ -124,7 +123,6 @@ def create_waitForNot(func):
     Decorator to convert a test method of class SeleniumCommander (starting with 'wd_SEL*') into a Selenium
     'waitForNot*' function.
     """
-
     def wrap_func(self, target, value=None):
         for i in range (self.repeat):
             try:
@@ -322,45 +320,32 @@ class SeleniumDriver(object):
         tag, tvalue = self._tag_and_value(value)
         select = Select(target_elem)
         if tag in ['label', None]:
-            tvalue = self._matchOptionText(target, tvalue)
+            tvalue = self._matchOptionText(target_elem, tvalue)
             select.select_by_visible_text(tvalue)
         elif tag == 'value':
-            tvalue = self._matchOptionValue(target, tvalue)
+            tvalue = self._matchOptionValue(target_elem, tvalue)
             select.select_by_value(tvalue)
         elif tag == 'id':
-            target_elem = self._find_target(value)
-            select.select_by_visible_text(target_elem.text)
+            option = target_elem.find_element_by_id(tvalue)
+            select.select_by_visible_text(option.text)
         elif tag == 'index':
             select.select_by_index(int(tvalue))
         else:
             raise RuntimeError("Unknown option locator type: " + tag)
      
     def _matchOptionText(self, target, tvalue):
-        for option in self._find_children(target):
+        for option in target.find_elements_by_xpath("*"):
             text = option.text
             if self._matches(tvalue, text):
                 return text
         return tvalue
     
     def _matchOptionValue(self, target, tvalue):
-        for option in self._find_children(target):
+        for option in target.find_elements_by_xpath("*"):
             value = option.get_attribute("value")
             if self._matches(tvalue, value):
                 return value
         return tvalue
-    
-    def _find_children(self, target):
-        ttype, ttarget = self._tag_and_value(target)
-        if ttype == 'css':
-            return self.driver.find_elements_by_css_selector(ttarget + ">*" )
-        elif ttype == 'xpath':
-            return self.driver.find_elements_by_xpath(ttarget + "/*")
-        elif ttype == 'name':
-            return self.driver.find_elements_by_xpath("//*[@name='" + ttarget + "']/*")
-        elif ttype in ['id', None]:
-            return self.driver.find_elements_by_xpath("//*[@id='" + ttarget + "']/*")
-        else:
-            raise UnexpectedTagNameException('no way to find child targets "%s"' % target)
         
 
     @seleniumcommand
@@ -421,7 +406,7 @@ class SeleniumDriver(object):
         ttype, ttarget = self._tag_and_value(target)
         if (ttype != 'name' and ttarget != 'null'):
             raise NotImplementedError('only window locators with the prefix "name=" are supported currently')
-        if ttarget == "null":
+        if ttarget in ["null", ""]:
             ttarget = 0
         self.driver.switch_to_window(ttarget)
 
@@ -483,7 +468,12 @@ class SeleniumDriver(object):
         # Thus they are handled the same way here, although this does not reflect the exact behavior of the IDE
         return self.wd_SEL_Alert(target, value)
    
-
+    def wd_SEL_Table(self, target, value):
+         target, row, column = target.rsplit(".", 2)
+         table = self._find_target(target)
+         pos = "tbody/tr[" + str(int(row) + 1) + "]/*[" +  str(int(column) + 1) + "]"
+         return value, table.find_element_by_xpath(pos).text.strip()
+     
     ################# Some helper Functions ##################
 
 
@@ -491,7 +481,7 @@ class SeleniumDriver(object):
         # target can be e.g. "css=td.f_transfectionprotocol"
         s = tvalue.split('=', 1)
         tag, value = s if len(s) == 2 else (None, None)
-        if not tag in ['css', 'id', 'name', 'link', 'label', "value", "index"]:
+        if not tag in ['css', 'id', 'name', 'link', 'label', 'value', 'index']:
             # Older sel files do not specify a 'css' or 'id' prefix. Lets distinguish by inspecting 'target'
             # NOTE: This check is probably not complete here!!! Watch out for problems!!!
             value = tvalue
@@ -573,7 +563,7 @@ class SeleniumDriver(object):
     def _translateWilcardToRegex(self, wc):
         # !note: The IDE wildcards do not include [...] expressions.
         # escape metacharacters not used in wildcards
-        metacharacters = ['\\', '.', '$','|','+','(',')', '[', ']']
+        metacharacters = ['.', '$','|','+','(',')', '[', ']']
         for char in metacharacters:
             wc = wc.replace(char, '\\' + char)
         # translate wildcard characters $ and *

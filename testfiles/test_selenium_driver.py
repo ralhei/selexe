@@ -152,6 +152,18 @@ class Test_SeleniumDriver(object):
         """check select method and the associated find_children method (for selection lists / drop-downs)"""
         self.sd('open', '/static/form1')
         #
+        # check finding option elements by given id of the select node
+        self.sd('select', 'id=selectTest', "value=value1")
+        #
+        # check finding option elements by given xpath of the select node
+        self.sd('select', '//select', "value=value2")
+        #
+        # check finding option elements by given name of the select node
+        self.sd('select', 'name=select1', "value=value3")
+        #
+        # check finding option elements by given css path of the select node
+        self.sd('select', 'css=#selectTest', "value=value4")
+        #
         # check that all option locator parameters work as expected
         optionLocators =[('label1', '1'), ('label=label2', '2'), ('value=value3', '3'), ('id=option4', '4'), ('index=0', '1')]
         for optionLocator in optionLocators:
@@ -170,20 +182,6 @@ class Test_SeleniumDriver(object):
         # check failing while trying to perform a select command on a non-select element
         with py.test.raises(UnexpectedTagNameException): 
             self.sd('select', 'id=id_submit', "value=value1")
-        #    
-        # check the find_children method: finds the option elements of a select node
-        #
-        # check finding option elements by given id of the select node
-        self.sd('select', 'id=selectTest', "value=value1")
-        #
-        # check finding option elements by given xpath of the select node
-        self.sd('select', '//select', "value=value2")
-        #
-        # check finding option elements by given name of the select node
-        self.sd('select', 'name=select1', "value=value3")
-        #
-        # check finding option elements by given css path of the select node
-        self.sd('select', 'css=#selectTest', "value=value4")
 
         
     def test_Check_methods(self):
@@ -270,7 +268,7 @@ class Test_SeleniumDriver(object):
         # check that the focus is still on the main window.
         assert self.sd('getText', 'css=h1') == 'H1 text'
         #
-        # check waiting for a non-existent pop up with specified timeout = 2.1s which results in two pollings
+        # check waiting for a non-existent pop up with specified timeout = 2.1s
         with py.test.raises(NoSuchWindowException):
             self.sd('waitForPopUp', "no pop up", "2100")
         #
@@ -318,8 +316,7 @@ class Test_SeleniumDriver(object):
         #
         # check the storing of the result of the ElementPresent method
         self.sd('storeElementPresent', '//div[@class="class"]', 'elementPresent')
-        assert self.sd.storedVariables['elementPresent'] == 'False'
-            
+        assert self.sd.storedVariables['elementPresent'] == 'False'  
         
     def test_SeleniumStringPatterns(self):
         """testing string match parameters regexp, exact and glob in _match and _isContained methods"""
