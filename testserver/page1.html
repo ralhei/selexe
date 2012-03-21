@@ -13,7 +13,7 @@
             }
         </script>
         <script TYPE="text/javascript">
-        	function insertText(time) {
+        	function insertTextDelay(time) {
         		setTimeout(function() { 
         			var p2 = document.getElementsByTagName('p')[0];
 					var newP = document.createElement("p");
@@ -24,7 +24,7 @@
         	}
 		</script>
 		<script type="text/javascript">
-			function removeText(time) {
+			function removeTextDelay(time) {
 				setTimeout(function() { 
 					nodes = document.getElementsByTagName('p');
 					if (nodes.length > 1) {
@@ -34,7 +34,7 @@
 					}
 				}, time)
 			}
-</script> 
+		</script> 
     </head>
     <body>
         <h1>H1 text</h1>
@@ -43,9 +43,10 @@
         <a href="#">A link</a>
         <a href="popupbasic" id="popup" onClick="return popup(this, 'stekie')">Test popup</a>
         <p>This is some arbitrary text to check for verifyTexts</p>
-        <input type="button" onclick="alert('hello');" id="alert-button" value="alert button" />
-        <input type="button" id="alertButton" onclick="alert('hello');" value="alert button" />
+        <input type="button" id="alertButton" value="alert button" onclick="alert('hello');"/>
 		<br/>
-		<input type="button" id="textRemoveDelay" value="Push this button to delete a text in 3000 milliseconds" onClick="removeText(3000);">
+		<input type="button" id="textInsertDelay" value="Push this button to insert a text in 3000 milliseconds" onClick="insertTextDelay(3000);"/>
+		<br/>
+		<input type="button" id="textRemoveDelay" value="Push this button to delete a text in 3000 milliseconds" onClick="removeTextDelay(3000);"/>
     </body>
 </html>

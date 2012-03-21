@@ -14,19 +14,16 @@ from selenium.common.exceptions import NoSuchFrameException
 from selenium.common.exceptions import NoSuchAttributeException
 from selenium.webdriver.common.action_chains import ActionChains
 
-###
-# the fololowing imports provide a setup function to fire up and shutddown the (bottle) testserver!
 from test_execute_sel_files import setup_module, teardown_module
 
 BASE_URI = 'http://localhost:8080'
-selenium_driver.WAIT_FOR_TIMEOUT = 1000  # during testing only wait 1sec until timeout should be raised
 
 
 class Test_SeleniumDriver(object):
     def setup_method(self, method):
         self.driver = webdriver.Firefox()
-        self.driver.implicitly_wait(30)
         self.sd = selenium_driver.SeleniumDriver(self.driver, BASE_URI)
+        self.sd.setTimeoutAndPoll(1000, 0.2) # during testing only wait 1sec until timeout should be raised
 
     def teardown_method(self, method):
         self.driver.quit()
@@ -82,20 +79,23 @@ class Test_SeleniumDriver(object):
             self.sd('waitForNotText', 'css=h1', 'H1 text')
             
         # check waiting for text which is inserted on the page 3000 ms after clicking on a button
+        self.sd.setTimeoutAndPoll(10000, 0.2)
         self.sd('click', 'id=textInsertDelay')
         self.sd('waitForTextPresent', 'Text was inserted')
         #
         # check waiting for a text which is deleted on the page 3000 ms after clicking on a button
         self.sd('click', 'id=textRemoveDelay')
         self.sd('waitForNotTextPresent', 'Text was inserted')
+        self.sd.setTimeoutAndPoll(1000, 0.2)
         #
         # check that waiting for non-existing text finally raises RuntimeError a (after timeout):
         with py.test.raises(RuntimeError):
-            self.sd('waitForText', 'css=h1', 'H1 WROOOOOONG text', timeout=1000)
+            self.sd('waitForText', 'css=h1', 'H1 WROOOOOONG text')
         #
         # check that waiting for existing text with 'waitForNotText' raises a RuntimeError (after timeout)
         with py.test.raises(RuntimeError):
-            self.sd('waitForNotText', 'css=h1', 'H1 text', timeout=1000)
+            self.sd('waitForNotText', 'css=h1', 'H1 text')
+
              
 
     def test_Alert_methods(self):
@@ -126,14 +126,13 @@ class Test_SeleniumDriver(object):
         self.sd.initVerificationErrors()  # reset verification messages
         #
         # Check that the message of the alert window gets stored
-        self.sd('click', 'id=alert-button')
-        self.sd('storeAlert', 'alert-msg')
-        assert self.sd.storedVariables['alert-msg'] == 'hello'
-        #
-        # check the confirmation method which is an alias for the alert method and store the alert text
         self.sd('click', '//input[@value="alert button"]')
-        self.sd('storeConfirmation', 'confirmationMsg')
-        assert self.sd.storedVariables['confirmationMsg'] == 'hello'
+        self.sd('storeAlert', 'alertmsg')
+        assert self.sd.storedVariables['alertmsg'] == 'hello'
+        #
+        # check the confirmation method which is an alias for the alert method
+        self.sd('click', '//input[@value="alert button"]')
+        self.sd('assertConfirmation', 'hello')
 
             
     def test_XpathCount_method(self):
@@ -153,6 +152,18 @@ class Test_SeleniumDriver(object):
         """check select method and the associated find_children method (for selection lists / drop-downs)"""
         self.sd('open', '/static/form1')
         #
+        # check finding option elements by given id of the select node
+        self.sd('select', 'id=selectTest', "value=value1")
+        #
+        # check finding option elements by given xpath of the select node
+        self.sd('select', '//select', "value=value2")
+        #
+        # check finding option elements by given name of the select node
+        self.sd('select', 'name=select1', "value=value3")
+        #
+        # check finding option elements by given css path of the select node
+        self.sd('select', 'css=#selectTest', "value=value4")
+        #
         # check that all option locator parameters work as expected
         optionLocators =[('label1', '1'), ('label=label2', '2'), ('value=value3', '3'), ('id=option4', '4'), ('index=0', '1')]
         for optionLocator in optionLocators:
@@ -171,20 +182,6 @@ class Test_SeleniumDriver(object):
         # check failing while trying to perform a select command on a non-select element
         with py.test.raises(UnexpectedTagNameException): 
             self.sd('select', 'id=id_submit', "value=value1")
-        #    
-        # check the find_children method: finds the option elements of a select node
-        #
-        # check finding option elements by given id of the select node
-        self.sd('select', 'id=selectTest', "value=value1")
-        #
-        # check finding option elements by given xpath of the select node
-        self.sd('select', '//select', "value=value2")
-        #
-        # check finding option elements by given name of the select node
-        self.sd('select', 'name=select1', "value=value3")
-        #
-        # check finding option elements by given css path of the select node
-        self.sd('select', 'css=#selectTest', "value=value4")
 
         
     def test_Check_methods(self):
@@ -271,7 +268,7 @@ class Test_SeleniumDriver(object):
         # check that the focus is still on the main window.
         assert self.sd('getText', 'css=h1') == 'H1 text'
         #
-        # check waiting for a non-existent pop up with specified timeout = 2.1s which results in two pollings
+        # check waiting for a non-existent pop up with specified timeout = 2.1s
         with py.test.raises(NoSuchWindowException):
             self.sd('waitForPopUp', "no pop up", "2100")
         #
@@ -319,8 +316,7 @@ class Test_SeleniumDriver(object):
         #
         # check the storing of the result of the ElementPresent method
         self.sd('storeElementPresent', '//div[@class="class"]', 'elementPresent')
-        assert self.sd.storedVariables['elementPresent'] == 'false'
-            
+        assert self.sd.storedVariables['elementPresent'] == False  
         
     def test_SeleniumStringPatterns(self):
         """testing string match parameters regexp, exact and glob in _match and _isContained methods"""

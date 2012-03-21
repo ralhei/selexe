@@ -29,12 +29,12 @@ class SelexeRunner(object):
         fp = open(self.filename)
         seleniumParser = SeleniumParser(fp)
         driver = webdriver.Firefox()
+        driver.implicitly_wait(3)
         baseURI = self.baseuri or seleniumParser.baseuri
         if baseURI.endswith('/'):
             baseURI = baseURI[:-1]
         logging.info('baseURI: %s' % baseURI)
         try:
-            driver.implicitly_wait(3)
             sd = SeleniumDriver(driver, baseURI)
             return self._wrapExecution(seleniumParser, sd)
         finally:
@@ -69,7 +69,7 @@ class SelexeRunner(object):
             try:
                 sd(command, target, value)
             except:
-                logging.info('Command %s(%r, target=%r) failed.' % (command, target, value))
+                logging.error('Command %s(%r, target=%r) failed.' % (command, target, value))
                 raise
         return sd.getVerificationErrors()
 
