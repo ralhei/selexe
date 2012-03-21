@@ -81,7 +81,7 @@ class Test_SeleniumDriver(object):
         # check waiting for text which is inserted on the page 3000 ms after clicking on a button
         self.sd.setTimeoutAndPoll(10000, 0.2)
         self.sd('click', 'id=textInsertDelay')
-        self.sd('waitForTextPresent', 'Text was inserted', )
+        self.sd('waitForTextPresent', 'Text was inserted')
         #
         # check waiting for a text which is deleted on the page 3000 ms after clicking on a button
         self.sd('click', 'id=textRemoveDelay')
@@ -316,7 +316,7 @@ class Test_SeleniumDriver(object):
         #
         # check the storing of the result of the ElementPresent method
         self.sd('storeElementPresent', '//div[@class="class"]', 'elementPresent')
-        assert self.sd.storedVariables['elementPresent'] == 'False'  
+        assert self.sd.storedVariables['elementPresent'] == False  
         
     def test_SeleniumStringPatterns(self):
         """testing string match parameters regexp, exact and glob in _match and _isContained methods"""

@@ -3,7 +3,7 @@ Created on 26.02.2012
 
 @author: Stephan Kienzle
 """
-import httplib, json
+import httplib, json, time
 
 class Userfunctions(object):
            
@@ -13,7 +13,7 @@ class Userfunctions(object):
         if "http://" in self.base_url:
             self.base_url = self.base_url[7:] 
            
-    def wd_putRest(self, target, value):
+    def putRest(self, target, value):
         """
         Selenium.prototype.doPutRest = function(url, data) {
             var jQuery = this.browserbot.getUserWindow().jQuery;
@@ -24,10 +24,10 @@ class Userfunctions(object):
         connection = httplib.HTTPConnection(self.base_url)
         headers = {"Content-type": 'application/json'}
         connection.request('PUT', target , value, headers)
-        assert connection.getresponse() == 200
+        assert connection.getresponse().status == 200
 
 
-    def wd_deleteRest(self, target, value):
+    def deleteRest(self, target, value):
         """
         Selenium.prototype.doDeleteRest = function(url) {
             this.browserbot.getUserWindow().jQuery.ajax({url: url, async: false,
@@ -36,9 +36,9 @@ class Userfunctions(object):
         """
         connection = httplib.HTTPConnection(self.base_url)
         connection.request('DELETE', target)
-        assert connection.getresponse() == 200
+        assert connection.getresponse().status == 200
         
-    def wd_assertGetRest(self, target, value):
+    def assertGetRest(self, target, value):
         """  
         Selenium.prototype.assertGetRest = function(url, data) {
         var actualData = this.browserbot.getUserWindow().jQuery.ajax({url: url,
@@ -55,16 +55,17 @@ class Userfunctions(object):
         """
         connection = httplib.HTTPConnection(self.base_url)
         connection.request("GET", target)
-        assert connection.getresponse() == 200
-        data = json.loads(connection.read())
+        response = connection.getresponse()
+        assert response.status == 200
+        data = json.loads(response.read())
         reference = json.loads(value)
         for key in reference:
             if data[key] != reference[key]:
                 raise AssertionError(key + ": actual value " + 
-                        data[key] + " does not match expected value " + reference[key])
+                        str(data[key]) + " does not match expected value " + str(reference[key]))
     
    
-    def wd_assertTextContainedInEachElement(self, target, value):
+    def assertTextContainedInEachElement(self, target, value):
         """
         Selenium.prototype.assertTextContainedInEachElement = function(locator, text) {
             var doc = this.browserbot.getCurrentWindow().document;
@@ -80,7 +81,7 @@ class Userfunctions(object):
         for element in webelements:
             assert self.commands._isContained(value, element.text)
     
-    def wd_doVerifyValidation(self, target, value):
+    def verifyValidation(self, target, value):
         """
         Selenium.prototype.doVerifyValidation = function(locator, expectedStatus) {
             try {
@@ -140,9 +141,9 @@ class Userfunctions(object):
         """
         expectedStatus = value.split(":")
         expectedAttributeValue = expectedStatus[0].strip()
-        expectedValidationMsg = expectedStatus[1].strip()
-        self.commands.wd_waitForAttribute(target + '@class', expectedAttributeValue)
-        self.commands.wd_mouseOver(target)
-        assert self.driver.getText('id=validationMsg').strip() == expectedValidationMsg
-        self.commands.wd_mouseOut()
+        expectedValidationMsg = expectedStatus[1].strip() if len(expectedStatus) == 2 else ""
+        self.commands.waitForAttribute(target + '@class', expectedAttributeValue)
+        self.commands.mouseOver(target)
+        assert self.commands.getText('id=validationMsg').strip() == expectedValidationMsg
+        self.commands.mouseOut(target)
     
