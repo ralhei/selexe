@@ -174,7 +174,7 @@ def create_selenium_methods(cls):
         setattr(cls, seleniumMethodName, seleniumcommand(wrappedMethod))
 
 
-    for methodName in cls.__dict__:
+    for methodName in cls.__dict__.keys():  # must loop over keys() as the dict gets modified while looping
         if methodName.startswith(GENERIC_METHOD_PREFIX):
             prefix = 'is' if methodName.endswith('Present') else 'get'
             decorate_method(cls, methodName, prefix, create_get_or_is)
@@ -213,7 +213,7 @@ def create_aliases(cls):
     from generic commands with suffix "Present". For the aliases the "Not" is moved away from the prefix and placed 
     before "Present"(most likely to increase readability), e.g. "verifyTextNotPresent" aliases to "verifyNotTextPresent".
     """
-    for methodName in cls.__dict__:    
+    for methodName in cls.__dict__.keys():  # must loop over keys() as the dict gets modified while looping
         if re.match(r"(verifyNot|assertNot|waitForNot)\w+Present", methodName):
             method = getattr(cls, methodName)
             def aliasMethod(self, target, value=None):
