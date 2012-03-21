@@ -237,7 +237,9 @@ def create_selenium_methods(cls):
     PREFIX2 = 'SEL_is_'
     variants = {PREFIX1 : "get" , PREFIX2 : "is"}
     
-    for prefix in variants.keys():
+    genericMethodName = re.compile(r'SEL_(\w+)_(\w+)')
+    
+    for prefix in variants:
         for methodName in cls.__dict__.keys():    
             if methodName.startswith(prefix):
                 decorate_method(cls, methodName, variants[prefix], prefix, create_get_is)
@@ -250,6 +252,50 @@ def create_selenium_methods(cls):
                 decorate_method(cls, methodName, 'store', prefix, create_store)    
     return cls        
     
+
+#def create_selenium_methods(cls):
+    #"""
+    #Class decorator to setup all available wrapping decorators to those methods in class SeleniumCommander
+    #starting with 'wd_SEL*'
+    #"""
+
+    #def decorate_method(cls, method, seleniumMethodName, decoratorFunc):
+        #"""
+        #This method double-decorates a generic webdriver command.
+        #1. Decorate it with one of the create_get, create_verify... decorators.
+           #These decorators convert the generic methods into a real selenium commands.
+        #2. Decorate with the 'seleniumcommand' method decorator.
+           #This wrapper expands selenium variables in the 'target' and 'value' and
+           #does the logging.
+        #"""
+        #wrappedMethod = decoratorFunc(method, variants[prefix])
+        #wrappedMethod.__name__ = seleniumMethodName
+        #setattr(cls, seleniumMethodName, seleniumcommand(wrappedMethod))
+        
+    #PREFIX1 = 'SEL_get_'
+    #PREFIX2 = 'SEL_is_'
+    #variants = {PREFIX1 : "get" , PREFIX2 : "is"}
+    
+    #genericMethodName = re.compile(r'SEL_(?P<prefix>\w+)_(?P<postfix>\w+)')
+    
+    #for methodName in cls.__dict__.keys():
+        #m = genericMethodName.match(methodName)
+        #if m:
+            #method = cls.__dict__[methodName]
+            #postfix = m.groups('body')
+            #decorate_method(cls, method, m.groups('prefix') + postfix, create_get_is)
+            
+            #decorate_method(cls, method, 'verify' + postfix, create_verify)
+            #decorate_method(cls, method, 'verifyNot' + postfix, create_verifyNot)
+            #decorate_method(cls, method, 'assert' + postfix, create_assert)
+            #decorate_method(cls, method, 'assertNot' + postfix, create_assertNot)
+            #decorate_method(cls, method, 'waitFor' + postfix, create_waitFor)
+            #decorate_method(cls, method, 'waitForNot' + postfix, create_waitForNot)
+            #decorate_method(cls, method, 'store' + postfix, create_store)    
+    #return cls        
+    
+
+
 
 def seleniumcommand(method):
     """Method decorator for selenium commands in SeleniumCommander class.
@@ -443,14 +489,16 @@ class SeleniumDriver(object):
 
     @seleniumcommand
     def mouseOver(self, target, value=None):
-        # Action Chains will not work with several Firefox Versions. Firefox Version 10.2 should be ok.
+        # Action Chains will not work with several Firefox Versions. Firefox Version 10.2 should be ok.        
         target_elem = self._find_target(target)
         ActionChains(self.driver).move_to_element(target_elem).perform()
 
     @seleniumcommand
     def mouseOut(self, target, value=None):
         size = self._find_target(target).size
-        ActionChains(self.driver).move_by_offset(size["width"], 0).perform()
+        actions = ActionChains(self.driver)
+        actions.move_to_element(target_elem)
+        actions.move_by_offset(size["width"], 0).perform()
 
     @seleniumcommand
     def waitForPopUp(self, target, value):
