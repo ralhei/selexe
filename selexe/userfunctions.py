@@ -1,16 +1,11 @@
-"""
-Created on 26.02.2012
-
-@author: Stephan Kienzle
-"""
 import httplib, json, time
 
 class Userfunctions(object):
            
-    def __init__(self, selenium_commands):
-        self.commands = selenium_commands
-        self.base_url = self.commands.base_url
-        if "http://" in self.base_url:
+    def __init__(self, selenium_driver):
+        self.sd = selenium_driver
+        self.base_url = self.sd.base_url
+        if 'http://' in self.base_url:
             self.base_url = self.base_url[7:] 
            
     def putRest(self, target, value):
@@ -23,7 +18,7 @@ class Userfunctions(object):
         """
         connection = httplib.HTTPConnection(self.base_url)
         headers = {"Content-type": 'application/json'}
-        connection.request('PUT', target , value, headers)
+        connection.request('PUT', target, value, headers)
         assert connection.getresponse().status == 200
 
 
@@ -54,15 +49,15 @@ class Userfunctions(object):
         };    
         """
         connection = httplib.HTTPConnection(self.base_url)
-        connection.request("GET", target)
+        connection.request('GET', target)
         response = connection.getresponse()
         assert response.status == 200
         data = json.loads(response.read())
-        reference = json.loads(value)
-        for key in reference:
-            if data[key] != reference[key]:
-                raise AssertionError(key + ": actual value " + 
-                        str(data[key]) + " does not match expected value " + str(reference[key]))
+        expectedData = json.loads(value)
+        for key in expectedData:
+            if data[key] != expectedData[key]:
+                raise AssertionError("%s: actual value %s does not match expected value %s" \
+                                     % key, str(data[key]), str(expectedData[key]))
     
    
     def assertTextContainedInEachElement(self, target, value):
@@ -77,9 +72,9 @@ class Userfunctions(object):
             };
         };
         """
-        webelements = self.commands.find_targets(self.driver, target)
+        webelements = self.sd.find_targets(self.driver, target)
         for element in webelements:
-            assert self.commands._isContained(value, element.text)
+            assert self.sd._isContained(value, element.text)
     
     def verifyValidation(self, target, value):
         """
@@ -139,11 +134,10 @@ class Userfunctions(object):
             };
         };
         """
-        expectedStatus = value.split(":")
-        expectedAttributeValue = expectedStatus[0].strip()
-        expectedValidationMsg = expectedStatus[1].strip() if len(expectedStatus) == 2 else ""
-        self.commands.waitForAttribute(target + '@class', expectedAttributeValue)
-        self.commands.mouseOver(target)
-        assert self.commands.getText('id=validationMsg').strip() == expectedValidationMsg
-        self.commands.mouseOut(target)
+        expectedValidationMsg, expectedClassValue = value.split(':') if ':' in value else value, ''
+        self.sd.waitForAttribute(target + '@class', expectedClassValue.strip())
+        target_elem = self.sd._find_target(target)
+        self.sd.mouseOver(target_elem)
+        assert self.sd.getText('id=validationMsg').strip() == expectedValidationMsg.strip()
+        self.sd.mouseOut(target_elem)
     

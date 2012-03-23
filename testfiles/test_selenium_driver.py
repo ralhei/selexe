@@ -456,6 +456,16 @@ class Test_SeleniumDriver(object):
         # assert that the text field's value attribute was filled correctly
         assert self.sd('getAttribute', 'id=id_text1@value') == 'a new text'
         
+    def test_Table_method(self):
+        ''' testing the table method'''
+        self.sd('open', '/static/page3')
+        #
+        # searching a cell in the last row of a table with a tfoot element which was inserted 
+        # in the html code before the tbody element
+        self.sd('assertTable', 'css=table#firstTable.2.2', 'London')
+        #
+        # searching the same table with tfoot tags left out.
+        self.sd('assertTable', 'css=table#secondTable.2.2', 'Manchester')
         
     def test_Command_NotImplementedError(self):
         ''' checking that a non-existent command raises a NotImplementedError'''

@@ -10,8 +10,8 @@ from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.alert import Alert
 from fnmatch import fnmatchcase as globmatchcase
-from userfunctions import Userfunctions
 from html2text import html2text
+
 
 
 
@@ -174,7 +174,7 @@ def create_selenium_methods(cls):
         setattr(cls, seleniumMethodName, seleniumcommand(wrappedMethod))
 
 
-    for methodName in cls.__dict__:
+    for methodName in cls.__dict__.keys():
         if methodName.startswith(GENERIC_METHOD_PREFIX):
             prefix = 'is' if methodName.endswith('Present') else 'get'
             decorate_method(cls, methodName, prefix, create_get_or_is)
@@ -213,7 +213,7 @@ def create_aliases(cls):
     from generic commands with suffix "Present". For the aliases the "Not" is moved away from the prefix and placed 
     before "Present"(most likely to increase readability), e.g. "verifyTextNotPresent" aliases to "verifyNotTextPresent".
     """
-    for methodName in cls.__dict__:    
+    for methodName in cls.__dict__.keys():    
         if re.match(r"(verifyNot|assertNot|waitForNot)\w+Present", methodName):
             method = getattr(cls, methodName)
             def aliasMethod(self, target, value=None):
@@ -237,11 +237,15 @@ class SeleniumDriver(object):
         self.storedVariables = {}
       
     def initVerificationErrors(self):
-        """reset list of verification errors"""
+        """
+        Reset the list of verification errors.
+        """
         self.verificationErrors = []
 
     def getVerificationErrors(self):
-        """get (a copy) of all available verification errors so far"""
+        """
+        Get (a copy) of all available verification errors so far.
+        """
         return self.verificationErrors[:]  # return a copy!
 
     def __call__(self, command, target, value=None, **kw):
@@ -259,10 +263,22 @@ class SeleniumDriver(object):
         return method(target, value, **kw)
 
     def _importUserFunctions(self):
-        funcNames = [key for (key, value) in Userfunctions.__dict__.iteritems() if isinstance(value, types.FunctionType)]
-        usr = Userfunctions(self)
-        for funcName in funcNames:
-            setattr(self, funcName, getattr(usr, funcName))
+        """
+        Import user functions and set these functions to the instance. 
+        The functions must be in a module called userfunctions in a class Userfunctions whose constructor 
+        takes a SeleniumDriver instance.
+        """
+        try:
+            from userfunctions import Userfunctions
+            funcNames = [key for (key, value) in Userfunctions.__dict__.iteritems() \
+                         if isinstance(value, types.FunctionType) and not key.startswith("__")]
+            usr = Userfunctions(self)
+            for funcName in funcNames:
+                setattr(self, funcName, getattr(usr, funcName))
+            logging.info("User functions: " + ", ".join(funcNames))
+        except ImportError:
+            logging.info("Using no user functions")
+        
 
     sel_var_pat = re.compile(r'\${([\w\d]+)}')
     def _expandVariables(self, s):
@@ -277,7 +293,7 @@ class SeleniumDriver(object):
     def setTimeoutAndPoll(self, timeout, poll):
         """
         Set attributes for commands starting with 'waitFor'. This is done initially.
-        Attribute 'timeout' specifies the time until a waitFor command will time out in milliseconds.
+        Attribute 'wait_for_timeout' specifies the time until a waitFor command will time out in milliseconds.
         Attribute 'poll' specifies the time until the function inside a waitFor command is repeated in seconds.
         Attribute 'num_repeats' specifies the number of times the function inside a waitFor command is repeated.
         """
@@ -368,7 +384,7 @@ class SeleniumDriver(object):
     @seleniumcommand
     def type(self, target, value):
         """
-        Types text into an input element.
+        Type text into an input element.
         @param target: an element locator
         @param value: the text to type
         """
@@ -380,7 +396,7 @@ class SeleniumDriver(object):
     @seleniumcommand
     def check(self, target, value=None):
         """
-        Checks a toggle-button (checkbox/radio)
+        Check a toggle-button (checkbox/radio).
         @param target: an element locator
         @param value: <not used>
         """
@@ -391,9 +407,9 @@ class SeleniumDriver(object):
     @seleniumcommand
     def uncheck(self, target, value=None): 
         """
-        Unchecks a toggle-button (checkbox/radio)
+        Uncheck a toggle-button (checkbox/radio).
         @param target: an element locator
-        @param value:  <not used>
+        @param value: <not used>
         """
         target_elem = self._find_target(target)
         if target_elem.is_selected():
@@ -403,7 +419,7 @@ class SeleniumDriver(object):
     @seleniumcommand
     def mouseOver(self, target, value=None):
         """
-        Simulates a user hovering a mouse over the specified element.
+        Simulate a user hovering a mouse over a specified element.
         @param target: an element locator
         @param value:  <not used>
         """
@@ -415,7 +431,7 @@ class SeleniumDriver(object):
     @seleniumcommand
     def mouseOut(self, target, value=None):
         """
-        Simulates a user moving the mouse away from the specified element.
+        Simulate a user moving the mouse away from a specified element.
         @param target: an element locator
         @param value:  <not used>
         """
@@ -431,14 +447,10 @@ class SeleniumDriver(object):
         Waits for a popup window to appear and load up.
         @param target: the JavaScript window "name" of the window that will appear (not the text of the title bar).
         A target which is unspecified or specified as "null" is not supported currently.
-        @param target: the JavaScript window ID of the window to select
         @param value: the timeout in milliseconds, after which the action will return with an error. If this value 
         is not specified, the default timeout will be used. See the setTimeoutAndPoll function.
         """
-        try:
-            timeout = int(value)
-        except (ValueError, TypeError):
-            timeout = self.wait_for_timeout
+        timeout = self.wait_for_timeout if not value else int(value)
         if target in ("null", "0"):
             raise NotImplementedError('"null" or "0" are currently not available as pop up locators')
         for i in range(self.num_repeats):
@@ -474,10 +486,11 @@ class SeleniumDriver(object):
     @seleniumcommand
     def selectFrame(self, target, value=None):
         """
-        Selects a frame within the current window. (You may invoke this command multiple times to select nested frames.) 
+        Select a frame within the current window. (You may invoke this command multiple times to select nested frames.) 
         You can also select a frame by its 0-based index number; select the first frame with "0", or the third frame 
-        with "2". To select the top frame, use may use "relative=top". Not yet supported: "relative=parent"
+        with "2". To select the top frame, you may use "relative=top". Not yet supported is "relative=parent".
         @param target: an element locator identifying a frame or iframe.
+        @param value: <not used>
         """
         if target.startswith('relative='):
             if target[9:] == 'top':
@@ -498,20 +511,20 @@ class SeleniumDriver(object):
      
     def wd_SEL_TextPresent(self, target, value=None):
         """
-        Verifies that the specified text pattern appears somewhere on the rendered page shown to the user.
+        Verify that the specified text pattern appears somewhere on the page shown to the user.
         @param target: a pattern to match with the text of the page 
         @param value: <not used>
-        @returns: true if the pattern matches the text, false otherwise
+        @return: true if the pattern matches the text, false otherwise
         """
         text = html2text(self.driver.page_source)
         return True, self._isContained(target, text)
    
     def wd_SEL_ElementPresent(self, target, value=None):        
         """
-        Verifies that the specified element is somewhere on the page. Catches a NoSuchElementException in order to return a result.
+        Verify that the specified element is somewhere on the page. Catch a NoSuchElementException in order to return a result.
         @param target: an element locator
         @param value: <not used>
-        @returns: true if the element is present, false otherwise
+        @return: true if the element is present, false otherwise
         """
         try:
             self._find_target(target)
@@ -522,10 +535,10 @@ class SeleniumDriver(object):
   
     def wd_SEL_Attribute(self, target, value):
         """
-        Gets the value of an element attribute.
+        Get the value of an element attribute.
         @param target: an element locator followed by an @ sign and then the name of the attribute, e.g. "foo@bar"
         @param value: the expected value of the specified attribute
-        @returns: the value of the specified attribute
+        @return: the value of the specified attribute
         """  
         target, sep, attr = target.rpartition("@")
         attrValue = self._find_target(target).get_attribute(attr)
@@ -536,30 +549,30 @@ class SeleniumDriver(object):
      
     def wd_SEL_Text(self, target, value):
         """
-        Gets the text of an element. This works for any element that contains text.
+        Get the text of an element. This works for any element that contains text.
         @param target: an element locator
         @param value: the expected text of the element
-        @returns: the text of the element
+        @return: the text of the element
         """ 
         return value, self._find_target(target).text.strip()
     
     
     def wd_SEL_Value(self, target, value):
         """
-        Gets the value of an input field (or anything else with a value parameter).
+        Get the value of an input field (or anything else with a value parameter).
         @param target: an element locator
         @param value: the expected element value
-        @returns: the element value
+        @return: the element value
         """    
         return value, self._find_target(target).get_attribute("value").strip()
     
 
     def wd_SEL_XpathCount(self, target, value):
         """
-        Get the number of nodes that match the specified xpath, eg. "//table" would give the number of tables.
-        @param target: an xpath expression to locate an element
+        Get the number of nodes that match the specified xpath, e.g. "//table" would give the number of tables.
+        @param target: an xpath expression to locate elements
         @param value: the number of nodes that should match the specified xpath
-        @returns: the number of nodes that match the specified xpath
+        @return: the number of nodes that match the specified xpath
         """      
         count = len(self.driver.find_elements_by_xpath(target))
         return int(value), count
@@ -567,12 +580,12 @@ class SeleniumDriver(object):
   
     def wd_SEL_Alert(self, target, value=None):
         """
-        Retrieves the message of a JavaScript alert generated during the previous action, or fail if there were no alerts. 
+        Retrieve the message of a JavaScript alert generated during the previous action, or fail if there are no alerts. 
         Getting an alert has the same effect as manually clicking OK. If an alert is generated but you do not consume it 
-        with getAlert, the next wedriver action will fail.
+        with getAlert, the next webdriver action will fail.
         @param target: the expected message of the most recent JavaScript alert
         @param value: <not used>
-        @returns: the message of the most recent JavaScript alert
+        @return: the message of the most recent JavaScript alert
         """
         alert = Alert(self.driver)
         text = alert.text.strip() 
@@ -590,33 +603,51 @@ class SeleniumDriver(object):
   
     def wd_SEL_Table(self, target, value):
         """
-        Gets the text from a cell of a table. The cellAddress syntax tableLocator.row.column, where row and column start at 0.
+        Get the text from a cell of a table. The cellAddress syntax is tableLocator.row.column, where row and column start at 0.
         @param target: a cell address, e.g. "css=#myFirstTable.2.3"
         @param value: the text which is expected in the specified cell.
-        @returns: the text from the specified cell
+        @return: the text from the specified cell
         """ 
         target, row, column = target.rsplit(".", 2)
         table = self._find_target(target)
-        pos = "tbody/tr[" + str(int(row) + 1) + "]/*[" +  str(int(column) + 1) + "]"
-        return value, table.find_element_by_xpath(pos).text.strip()
-     
+        rows = []
+        # collect all rows  from the possible table elements in the needed order
+        for tableElem in ['thead', 'tbody', 'tfoot']:    
+            rows.extend(table.find_elements_by_xpath(tableElem + '/*'))
+        # get the addressed child element of the addressed row    
+        cell = rows[int(row)].find_elements_by_xpath('*')[int(column)]
+        return value, cell.text.strip()
+    
     ################# Some helper Functions ##################
 
 
-    def _tag_and_value(self, tvalue):
+    def _tag_and_value(self, target):
+        """
+        Examine the type of an element locator.
+        @param target: an element locator
+        @param value: <not used>
+        @return: a tuple - the type of the element locator and the locator without type prefix.
+        """
         # target can be e.g. "css=td.f_transfectionprotocol"
-        s = tvalue.split('=', 1)
+        s = target.split('=', 1)
         tag, value = s if len(s) == 2 else (None, None)
         if not tag in ['xpath', 'css', 'id', 'name', 'link', 'label', 'value', 'index']:
             # Older sel files do not specify a 'css' or 'id' prefix. Lets distinguish by inspecting 'target'
             # NOTE: This check is probably not complete here!!! Watch out for problems!!!
-            value = tvalue
-            if tvalue.startswith('//'):
+            value = target
+            if target.startswith('//'):
                 tag = 'xpath'
         return tag, value
     
     
     def _find_target(self, target):
+        """
+        Examine the type of an element locator and select and execute the find method which corresponds to
+        the type.
+        @param target: an element locator
+        @param value: <not used>
+        @return: the webelement instance found by a find_element_* method
+        """
         ttype, ttarget = self._tag_and_value(target)
         if ttype == 'css':
             return self.driver.find_element_by_css_selector(ttarget)
@@ -639,19 +670,17 @@ class SeleniumDriver(object):
         
     def _matches(self, expectedResult, result):
         """
-        Try to match result found in HTML with expected result
-        @param expectedResult: string containing the 'result' of a selenese command (can be plain text, regex, ...)
-        @param result: string obtained from HTML via 'target'
-        @result boolean
-    
-        This function handles the three kinds of String-match Patterns which Selenium defines.
-        This is done in order to compare the pattern "pat" against "res".
+        Try to match a result of a selenese command with its expected result.
+        This function handles the three kinds of String-match Patterns which Selenium defines:
         1) plain equality comparison
         2) regexp: a regular expression
         3) exact: a non-wildcard expression
         4) glob: a (possible) wildcard expression. This is the default (fallback) method if 1) and 2) don't apply
         
-        see: http://release.seleniumhq.org/selenium-remote-control/0.9.2/doc/dotnet/Selenium.html
+        see: http://release.seleniumhq.org/selenium-remote-control/0.9.2/doc/dotnet/Selenium.html    
+        @param expectedResult: the expected result
+        @param result: string containing the 'result' of a selenese command (can be plain text, regex, ...)
+        @return: true if matches, false otherwise
         """
         # 1) equality expression (works for booleans, integers, etc)
         if type(expectedResult) not in [str, unicode]:
@@ -674,6 +703,14 @@ class SeleniumDriver(object):
     
     
     def _isContained(self, pat, text):
+        """
+        Verify that the specified string pattern can be found somewhere in a text.
+        This function handles the three kinds of String-match Patterns which Selenium defines:
+        see the _matches method for further details.
+        @param pat: a string pattern
+        @param text: a text where the pattern should be found.
+        @return: true if found, false otherwise
+        """
         # 1) regexp
         if pat.startswith('regexp:'):
             return re.search(pat[7:], text) is not None
@@ -688,7 +725,12 @@ class SeleniumDriver(object):
             return re.search(pat, text) is not None
         
     def _translateWilcardToRegex(self, wc):
-        # !note: The IDE wildcards do not include [...] expressions.
+        """
+        Translate a wildcard pattern into in regular expression (in order to search with it in python).
+        Note: Since the IDE wildcard expressions do not include bracket expressions they are not handled here.
+        @param wc: a wildcard pattern
+        @return: the translation into a regular expression.
+        """
         # escape metacharacters not used in wildcards
         metacharacters = ['.', '$','|','+','(',')', '[', ']']
         for char in metacharacters:
