@@ -250,9 +250,9 @@ class SeleniumDriver(object):
 
     def __call__(self, command, target, value=None, **kw):
         """
-        Make an actual call to a selenium action method.
+        Make an actual call to a Selenium action method.
         Examples for methods are 'verifyText', 'assertText', 'waitForText', etc., so methods that are
-        typically available in the selenium IDE.
+        typically available in the Selenium IDE.
         Most methods are dynamically created through decorator functions (from 'wd_SEL*-methods) and hence are
         dynamically looked up in the class dictionary.
         """
@@ -339,8 +339,10 @@ class SeleniumDriver(object):
     @seleniumcommand
     def select(self, target, value):
         """
-        In HTML select list (specified by 'target') select item (specified by 'value')
-        'value' can have the following formats:
+        Select an option of a select box.
+	    @param target: a element locator pointing at a select element
+        @param value: an option locator which points at an option of the select element
+        Option locators can have the following formats:
         label=labelPattern: matches options based on their labels, i.e. the visible text. (This is the default.)
             example: "label=regexp:^[Oo]ther"
         value=valuePattern: matches options based on their values.
@@ -365,7 +367,7 @@ class SeleniumDriver(object):
         elif tag == 'index':
             select.select_by_index(int(tvalue))
         else:
-            raise RuntimeError("Unknown option locator type: " + tag)
+            raise UnexpectedTagNameException("Unknown option locator tag: " + tag)
      
     def _matchOptionText(self, target, tvalue):
         for option in target.find_elements_by_xpath("*"):
@@ -419,9 +421,9 @@ class SeleniumDriver(object):
     @seleniumcommand
     def mouseOver(self, target, value=None):
         """
-        Simulate a user hovering a mouse over a specified element.
+        Simulate a user moving the mouse over a specified element.
         @param target: an element locator
-        @param value:  <not used>
+        @param value: <not used>
         """
         target_elem = self._find_target(target)
           # Action Chains will not work with several Firefox Versions. Firefox Version 10.2 should be ok.
@@ -433,7 +435,7 @@ class SeleniumDriver(object):
         """
         Simulate a user moving the mouse away from a specified element.
         @param target: an element locator
-        @param value:  <not used>
+        @param value: <not used>
         """
         target_elem = self._find_target(target)
         actions = ActionChains(self.driver)
@@ -447,13 +449,15 @@ class SeleniumDriver(object):
         Waits for a popup window to appear and load up.
         @param target: the JavaScript window "name" of the window that will appear (not the text of the title bar).
         A target which is unspecified or specified as "null" is not supported currently.
-        @param value: the timeout in milliseconds, after which the action will return with an error. If this value 
-        is not specified, the default timeout will be used. See the setTimeoutAndPoll function.
+        @param value: the timeout in milliseconds, after which the function will raise an error. If this value 
+        is not specified, the default timeout will be used. See the setTimeoutAndPoll function for the default timeout.
         """
-        timeout = self.wait_for_timeout if not value else int(value)
-        if target in ("null", "0"):
-            raise NotImplementedError('"null" or "0" are currently not available as pop up locators')
-        for i in range(self.num_repeats):
+        # value allows custom timeout
+    	timeout = self.wait_for_timeout if not value else int(value)
+    	num_repeats = int(timeout / 1000 / self.poll) 
+    	if target in ("null", "0"):
+                raise NotImplementedError('"null" or "0" are currently not available as pop up locators')
+        for i in range(num_repeats):
             try:
                 self.driver.switch_to_window(target)
                 self.driver.switch_to_window(0)
@@ -623,29 +627,28 @@ class SeleniumDriver(object):
 
     def _tag_and_value(self, target):
         """
-        Examine the type of an element locator.
+    	Get the tag of an element locator to identify its type.
         @param target: an element locator
-        @param value: <not used>
-        @return: a tuple - the type of the element locator and the locator without type prefix.
+        @return: tag and element locator (tag removed) as a tuple.
         """
-        # target can be e.g. "css=td.f_transfectionprotocol"
-        s = target.split('=', 1)
-        tag, value = s if len(s) == 2 else (None, None)
-        if not tag in ['xpath', 'css', 'id', 'name', 'link', 'label', 'value', 'index']:
-            # Older sel files do not specify a 'css' or 'id' prefix. Lets distinguish by inspecting 'target'
-            # NOTE: This check is probably not complete here!!! Watch out for problems!!!
-            value = target
-            if target.startswith('//'):
-                tag = 'xpath'
-        return tag, value
-    
+        # e.g. target -> tag, value (all pointing at the same node) 
+    	# 1 css=td.f_transfectionprotocol -> css, td.f_transfectionprotocol, 
+    	# 2 xpath=//td[@id='f_transfectionprotocol'] -> xpath, //td[@id='f_transfectionprotocol'] 
+    	# 3 //td[@id='f_transfectionprotocol'] -> xpath, //td[@id='f_transfectionprotocol']
+    	# 4 f_transfectionprotocol -> None, f_transfectionprotocol
+    	# 5 id=f_transfectionprotocol -> id, f_transfectionprotocol
+    	if target.startswith('//'):  # Identify an xpath locator missing a tag by looking at the leading tokens. This separate handling saves this locator variant from a split operation which may cut it in two worthless pieces (example 3). 
+    		tag, value = ('xpath', target) 
+    	else: # Perform a split for all other locator types to get the tag. If there is no tag, specify it as None. 
+    		s = target.split('=', 1)
+    		tag, value = s if len(s) == 2 else (None, target) # Older IDE Versions did not specify an "id" or "name" tag while recording (example 4). We support these non-tag locators because the IDE still does. The ambiguity is easily handled in further processing.
+    	return tag, value # Unknown tags raise an UnexpectedTagNameException in further processing.
+    	
     
     def _find_target(self, target):
         """
-        Examine the type of an element locator and select and execute the find method which corresponds to
-        the type.
+        Select and execute the appropriate find_element_* method for an element locator.
         @param target: an element locator
-        @param value: <not used>
         @return: the webelement instance found by a find_element_* method
         """
         ttype, ttarget = self._tag_and_value(target)
@@ -659,7 +662,7 @@ class SeleniumDriver(object):
             return self.driver.find_element_by_name(ttarget)
         elif ttype == 'link':
             return self.driver.find_element_by_link_text(ttarget)
-        elif ttype == None:
+        elif ttype == None: 
             try:
                 return self.driver.find_element_by_id(ttarget)
             except:
@@ -671,15 +674,14 @@ class SeleniumDriver(object):
     def _matches(self, expectedResult, result):
         """
         Try to match a result of a selenese command with its expected result.
-        This function handles the three kinds of String-match Patterns which Selenium defines:
+        The function performs a plain equality comparison for non-Strings and handles all three kinds of String-match patterns which Selenium defines:
         1) plain equality comparison
         2) regexp: a regular expression
         3) exact: a non-wildcard expression
-        4) glob: a (possible) wildcard expression. This is the default (fallback) method if 1) and 2) don't apply
-        
+        4) glob: a (possible) wildcard expression. This is the default (fallback) method if 1), 2) and 3) don't apply
         see: http://release.seleniumhq.org/selenium-remote-control/0.9.2/doc/dotnet/Selenium.html    
-        @param expectedResult: the expected result
-        @param result: string containing the 'result' of a selenese command (can be plain text, regex, ...)
+        @param expectedResult: the expected result of a selenese command
+        @param result: the actual result of a selenese command
         @return: true if matches, false otherwise
         """
         # 1) equality expression (works for booleans, integers, etc)
@@ -704,11 +706,10 @@ class SeleniumDriver(object):
     
     def _isContained(self, pat, text):
         """
-        Verify that the specified string pattern can be found somewhere in a text.
-        This function handles the three kinds of String-match Patterns which Selenium defines:
-        see the _matches method for further details.
+        Verify that a string pattern can be found somewhere in a text.
+        This function handles all three kinds of String-match Patterns which Selenium defines. See the _matches method for further details.
         @param pat: a string pattern
-        @param text: a text where the pattern should be found.
+        @param text: a text in which the pattern should be found
         @return: true if found, false otherwise
         """
         # 1) regexp
@@ -726,8 +727,8 @@ class SeleniumDriver(object):
         
     def _translateWilcardToRegex(self, wc):
         """
-        Translate a wildcard pattern into in regular expression (in order to search with it in python).
-        Note: Since the IDE wildcard expressions do not include bracket expressions they are not handled here.
+        Translate a wildcard pattern into in regular expression (in order to search with it in Python).
+        Note: Since the IDE wildcard expressions do not support bracket expressions they are not handled here.
         @param wc: a wildcard pattern
         @return: the translation into a regular expression.
         """

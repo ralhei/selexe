@@ -4,8 +4,8 @@ class Userfunctions(object):
            
     def __init__(self, selenium_driver):
         self.sd = selenium_driver
-        self.base_url = self.sd.base_url
-        if 'http://' in self.base_url:
+        self.base_url = selenium_driver.base_url
+        if self.base_url.startswith('http://'):
             self.base_url = self.base_url[7:] 
            
     def putRest(self, target, value):
@@ -49,8 +49,7 @@ class Userfunctions(object):
         };    
         """
         connection = httplib.HTTPConnection(self.base_url)
-        connection.request('GET', target)
-        response = connection.getresponse()
+        response = connection.request('GET', target).getresponse()
         assert response.status == 200
         data = json.loads(response.read())
         expectedData = json.loads(value)
@@ -72,9 +71,10 @@ class Userfunctions(object):
             };
         };
         """
-        webelements = self.sd.find_targets(self.driver, target)
-        for element in webelements:
-            assert self.sd._isContained(value, element.text)
+        target_elems = self.sd.driver.find_elements_by_xpath(target)
+        for target_elem in target_elems:
+            assert self.sd._isContained(value, target_elem.text)
+    
     
     def verifyValidation(self, target, value):
         """
@@ -134,7 +134,7 @@ class Userfunctions(object):
             };
         };
         """
-        expectedValidationMsg, expectedClassValue = value.split(':') if ':' in value else value, ''
+        expectedClassValue, expectedValidationMsg = value.split(':') if ':' in value else value, ''
         self.sd.waitForAttribute(target + '@class', expectedClassValue.strip())
         target_elem = self.sd._find_target(target)
         self.sd.mouseOver(target_elem)

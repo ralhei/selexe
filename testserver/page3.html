@@ -2,23 +2,19 @@
 	<head>
 	</head>
 	<body>
-		<p>Table with tfoot element </p>
+		<p>Table with only a tbody element</p>
 		<table id="firstTable" border="1">
-			<thead>
+			<tbody>
 				<tr>
-			    	<th>Germany</th>
-			    	<th>France</th>
-			    	<th>England</th>
+			    	<td>Germany</td>
+			    	<td>France</td>
+			    	<td>England</td>
 				</tr>
-			</thead>
-			<tfoot>
 				<tr>
-			    	<td><p>Berlin</p></td>
-			    	<td><p>Paris</p></td>
-			    	<td><p>London</p></td>
+			    	<td>Berlin</td>
+			    	<td>Paris</td>
+			    	<td>London</td>
 			  	</tr>
-			 </tfoot>
-			 <tbody>
 			  	<tr>
 			    	<td>Hamburg</td>
 			    	<td>Marseille</td>
@@ -26,15 +22,8 @@
 			  	</tr>
 			</tbody>
 		</table>
-		<p>Table without tfoot element</p>
+		<p>Table with thead (<b>bold</b>) and tbody elements</p>
 		<table id="secondTable" border="1">
-			<thead>
-				<tr>
-			    	<th>Germany</th>
-			    	<th>France</th>
-			    	<th>England</th>
-				</tr>
-			</thead>
 			<tbody>
 				<tr>
 			    	<td><p>Berlin</p></td>
@@ -46,6 +35,37 @@
 				   	<td>Marseille</td>
 					<td>Manchester</td>
 				</tr>
+			</tbody>
+			<thead>
+				<tr>
+			    	<th>Germany</th>
+			    	<th>France</th>
+			    	<th>England</th>
+				</tr>
+			</thead>
+		</table>
+		<p>Table with thead (<b>bold</b>), tbody and tfoot (<i>italic</i>) elements</p>
+		<table id="thirdTable" border="1">
+			<thead>
+				<tr>
+			    	<th>Germany</th>
+			    	<th>France</th>
+			    	<th>England</th>
+				</tr>
+			</thead>
+			<tfoot>
+				<tr>
+			    	<td><i>Berlin</i></td>
+			    	<td><i>Paris</i></td>
+			    	<td><i>London</i></td>
+			  	</tr>
+			 </tfoot>
+			 <tbody>
+			  	<tr>
+			    	<td>Hamburg</td>
+			    	<td>Marseille</td>
+			    	<td>Manchester</td>
+			  	</tr>
 			</tbody>
 		</table>
 	</body>
