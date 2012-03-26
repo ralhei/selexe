@@ -340,7 +340,7 @@ class SeleniumDriver(object):
     def select(self, target, value):
         """
         Select an option of a select box.
-	    @param target: a element locator pointing at a select element
+        @param target: a element locator pointing at a select element
         @param value: an option locator which points at an option of the select element
         Option locators can have the following formats:
         label=labelPattern: matches options based on their labels, i.e. the visible text. (This is the default.)
@@ -446,7 +446,7 @@ class SeleniumDriver(object):
     @seleniumcommand
     def waitForPopUp(self, target, value):
         """
-        Waits for a popup window to appear and load up.
+        Wait for a popup window to appear and load up.
         @param target: the JavaScript window "name" of the window that will appear (not the text of the title bar).
         A target which is unspecified or specified as "null" is not supported currently.
         @param value: the timeout in milliseconds, after which the function will raise an error. If this value 
@@ -471,7 +471,7 @@ class SeleniumDriver(object):
     @seleniumcommand
     def selectWindow(self, target, value):
         """
-        Selects a popup window using a window locator. Once a popup window has been selected, all commands go to that window. 
+        Select a popup window using a window locator. Once a popup window has been selected, all commands go to that window. 
         To select the main window again, use null as the target or leave it empty. The only locator option which is supported currently
         is 'name=' which finds the window using its internal JavaScript "name" property.
         Not yet supported are: 'title' and 'var'. The IDE has sophisticated routine for missing locator option which will most
@@ -629,14 +629,14 @@ class SeleniumDriver(object):
         """
     	Get the tag of an element locator to identify its type.
         @param target: an element locator
-        @return: tag and element locator (tag removed) as a tuple.
+        @return: an element locator splited into its tag and value.
+        # e.g. element locator -> tag, value (all locators pointing at the same node) 
+        # 1 css=td.f_transfectionprotocol -> css, td.f_transfectionprotocol, 
+        # 2 xpath=//td[@id='f_transfectionprotocol'] -> xpath, //td[@id='f_transfectionprotocol'] 
+        # 3 //td[@id='f_transfectionprotocol'] -> xpath, //td[@id='f_transfectionprotocol']
+        # 4 f_transfectionprotocol -> None, f_transfectionprotocol
+        # 5 id=f_transfectionprotocol -> id, f_transfectionprotocol
         """
-        # e.g. target -> tag, value (all pointing at the same node) 
-    	# 1 css=td.f_transfectionprotocol -> css, td.f_transfectionprotocol, 
-    	# 2 xpath=//td[@id='f_transfectionprotocol'] -> xpath, //td[@id='f_transfectionprotocol'] 
-    	# 3 //td[@id='f_transfectionprotocol'] -> xpath, //td[@id='f_transfectionprotocol']
-    	# 4 f_transfectionprotocol -> None, f_transfectionprotocol
-    	# 5 id=f_transfectionprotocol -> id, f_transfectionprotocol
     	if target.startswith('//'):  # Identify an xpath locator missing a tag by looking at the leading tokens. This separate handling saves this locator variant from a split operation which may cut it in two worthless pieces (example 3). 
     		tag, value = ('xpath', target) 
     	else: # Perform a split for all other locator types to get the tag. If there is no tag, specify it as None. 
