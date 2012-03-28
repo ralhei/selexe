@@ -1,4 +1,5 @@
 import httplib, json, time
+from selenium.webdriver.common.action_chains import ActionChains
 
 class Userfunctions(object):
            
@@ -49,9 +50,10 @@ class Userfunctions(object):
         };    
         """
         connection = httplib.HTTPConnection(self.base_url)
-        response = connection.request('GET', target).getresponse()
+        connection.request('GET', target)
+        response = connection.getresponse()
         assert response.status == 200
-        data = json.loads(response.read())
+        data = json.loads(response.read().strip('[]'))
         expectedData = json.loads(value)
         for key in expectedData:
             if data[key] != expectedData[key]:
@@ -134,10 +136,11 @@ class Userfunctions(object):
             };
         };
         """
-        expectedClassValue, expectedValidationMsg = value.split(':') if ':' in value else value, ''
+        expectedResult = value.split(':') if ':' in value else [value, '']
+        expectedClassValue, expectedValidationMsg = expectedResult
         self.sd.waitForAttribute(target + '@class', expectedClassValue.strip())
         target_elem = self.sd._find_target(target)
-        self.sd.mouseOver(target_elem)
+        ActionChains(self.sd.driver).move_to_element(target_elem).perform()
         assert self.sd.getText('id=validationMsg').strip() == expectedValidationMsg.strip()
-        self.sd.mouseOut(target_elem)
-    
+        ActionChains(self.sd.driver).move_by_offset(target_elem.size["width"] / 2 + 1, 0).perform()
+        

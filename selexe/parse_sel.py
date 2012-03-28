@@ -13,9 +13,11 @@ class SeleniumParser(object):
         body = self.soup.find('tbody')
         for tr in body.findAll('tr'):
             # return tuple (command, target, value) -> this corresponds to column names in Selenium IDE
-            command, target, value = [td.text for td in tr.findAll('td')]
-            v_value = htmlentitydecode(value)
-            v_target = htmlentitydecode(target)
+            command, target, value = [td.renderContents() for td in tr.findAll('td')]
+            v_value = handleTags(value)
+            v_target = handleTags(target)
+            v_value = htmlentitydecode(v_value)
+            v_target = htmlentitydecode(v_target)
             yield (command, v_target, v_value)
 
 
@@ -23,6 +25,10 @@ class SeleniumParser(object):
 def htmlentitydecode(s):
     """translate all HTML entities like &nbsp; into clean text characters"""
     return re.sub('&(%s);' % '|'.join(name2codepoint), lambda m: unichr(name2codepoint[m.group(1)]), s)
+
+def handleTags(s):
+    s = re.sub("\s*<br />\s*", "\n", s)
+    return re.sub("<.*>", "", s)
 
 
 if __name__ == '__main__':

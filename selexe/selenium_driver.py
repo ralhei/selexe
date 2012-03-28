@@ -6,6 +6,7 @@ from selenium.common.exceptions import NoAlertPresentException
 from selenium.common.exceptions import NoSuchAttributeException
 from selenium.common.exceptions import UnexpectedTagNameException
 from selenium.common.exceptions import NoSuchFrameException
+from selenium.common.exceptions import ElementNotVisibleException
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.alert import Alert
@@ -44,7 +45,7 @@ def create_verify(func):
                 # can be made.
                 verificationError = "false"
             else:
-                verificationError = 'Actual value "%s" did not match "%s"' % (str(result), str(expectedResult))
+                verificationError = 'Actual value "%s" did not match "%s"' % (result, expectedResult)
         logging.error(verificationError)
         self.verificationErrors.append(verificationError)        
         return False
@@ -69,7 +70,7 @@ def create_verifyNot(func):
                 # can be made.
                 verificationError = "true"
             else:
-                verificationError = 'Actual value "%s" did match "%s"' % (str(result), str(expectedResult))
+                verificationError = 'Actual value "%s" did match "%s"' % (result, expectedResult)
         logging.error(verificationError)
         self.verificationErrors.append(verificationError)        
         return False
@@ -84,7 +85,7 @@ def create_assert(func):
     def wrap_func(self, target, value=None):
         expectedResult, result = func(self, target, value=value)
         assert self._matches(expectedResult, result), \
-                    'Actual value "%s" did not match "%s"' % (str(result), str(expectedResult))
+                    'Actual value "%s" did not match "%s"' % (result, expectedResult)
     return wrap_func
 
 
@@ -96,7 +97,7 @@ def create_assertNot(func):
     def wrap_func(self, target, value=None):
         expectedResult, result = func(self, target, value=value)
         assert not self._matches(expectedResult, result), \
-                    'Actual value "%s" did match "%s"' % (str(result), str(expectedResult))
+                    'Actual value "%s" did match "%s"' % (result, expectedResult)
     return wrap_func
 
 
@@ -124,6 +125,7 @@ def create_waitForNot(func):
     'waitForNot*' function.
     """
     def wrap_func(self, target, value=None):
+	self.driver.implicitly_wait(0)
         for i in range (self.num_repeats):
             try:
                 expectedResult, result = func(self, target, value=value)
@@ -133,6 +135,7 @@ def create_waitForNot(func):
                 time.sleep(self.poll)
         else:
             raise RuntimeError("Timed out after %d ms" % self.wait_for_timeout)
+	self.driver.implicitly_wait(3)
     return wrap_func
 
 
@@ -147,6 +150,7 @@ def create_store(func):
         # for e.g. 'storeText' the variable name will be given in 'value' (target holds the element identifier)
         # The the heuristic is to use 'value' preferably over 'target' if available. Hope this works ;-)
         variableName = value or target
+	print result
         self.storedVariables[variableName] = result
     return wrap_func
 
@@ -232,6 +236,7 @@ class SeleniumDriver(object):
         self.base_url = base_url
         self.initVerificationErrors()
         self._importUserFunctions()
+	self.driver.implicitly_wait(5)
         self.setTimeoutAndPoll(20000, 0.5)
         # 'storedVariables' is used through the 'create_store' decorator above to store values during a selenium run:
         self.storedVariables = {}
@@ -274,7 +279,7 @@ class SeleniumDriver(object):
                          if isinstance(value, types.FunctionType) and not key.startswith("__")]
             usr = Userfunctions(self)
             for funcName in funcNames:
-                setattr(self, funcName, getattr(usr, funcName))
+                setattr(self, funcName, seleniumcommand(self, getattr(usr, funcName)))
             logging.info("User functions: " + ", ".join(funcNames))
         except ImportError:
             logging.info("Using no user functions")
@@ -326,6 +331,9 @@ class SeleniumDriver(object):
         @param value:  <not used>
         """
         self._find_target(target).click()
+	script = "return document.readyState"
+	#print self.driver.execute_script(script)
+	
 
     @seleniumcommand
     def click(self, target, value=None):
@@ -368,7 +376,8 @@ class SeleniumDriver(object):
             select.select_by_index(int(tvalue))
         else:
             raise UnexpectedTagNameException("Unknown option locator tag: " + tag)
-     
+
+	
     def _matchOptionText(self, target, tvalue):
         for option in target.find_elements_by_xpath("*"):
             text = option.text
@@ -426,7 +435,7 @@ class SeleniumDriver(object):
         @param value: <not used>
         """
         target_elem = self._find_target(target)
-          # Action Chains will not work with several Firefox Versions. Firefox Version 10.2 should be ok.
+	# Action Chains will not work with several Firefox Versions. Firefox Version 10.2 should be ok.
         ActionChains(self.driver).move_to_element(target_elem).perform()
 
   
@@ -469,7 +478,7 @@ class SeleniumDriver(object):
 
     
     @seleniumcommand
-    def selectWindow(self, target, value):
+    def selectWindow(self, target, value=None):
         """
         Select a popup window using a window locator. Once a popup window has been selected, all commands go to that window. 
         To select the main window again, use null as the target or leave it empty. The only locator option which is supported currently
@@ -477,15 +486,27 @@ class SeleniumDriver(object):
         Not yet supported are: 'title' and 'var'. The IDE has sophisticated routine for missing locator option which will most
         likely not be implemented.
         @param target: the JavaScript window ID of the window to select
-        @param value:  <not used>
+        @param value: <not used>
         """
         ttype, ttarget = self._tag_and_value(target)
-        if (ttype != 'name' and ttarget != 'null'):
-            raise NotImplementedError('only window locators with the prefix "name=" are supported currently')
         if ttarget in ["null", ""]:
-            ttarget = 0
-        self.driver.switch_to_window(ttarget)
-
+	    self.driver.switch_to_window(self.driver.window_handles[0])
+	elif ttype == "name":
+	    self.driver.switch_to_window(ttarget)
+	elif ttype in [None, 'title']:
+	    for window in self.driver.window_handles:
+		self.driver.switch_to_window(window)
+		if self.driver.find_element_by_xpath("//title").text == ttarget:
+		    break
+	else:
+	    raise NotImplementedError('No way to find the window: use "name" or "title" locator of specify target as "null"')
+	    
+    @seleniumcommand	
+    def selectPopUp(self, target, value=None):
+	"""
+	Alias for selectWindow.
+	"""
+	self.selectWindow(target, value)
     
     @seleniumcommand
     def selectFrame(self, target, value=None):
@@ -638,10 +659,10 @@ class SeleniumDriver(object):
         # 5 id=f_transfectionprotocol -> id, f_transfectionprotocol
         """
     	if target.startswith('//'):  # Identify an xpath locator missing a tag by looking at the leading tokens. This separate handling saves this locator variant from a split operation which may cut it in two worthless pieces (example 3). 
-    		tag, value = ('xpath', target) 
+	    tag, value = ('xpath', target) 
     	else: # Perform a split for all other locator types to get the tag. If there is no tag, specify it as None. 
-    		s = target.split('=', 1)
-    		tag, value = s if len(s) == 2 else (None, target) # Older IDE Versions did not specify an "id" or "name" tag while recording (example 4). We support these non-tag locators because the IDE still does. The ambiguity is easily handled in further processing.
+	    s = target.split('=', 1)
+	    tag, value = s if len(s) == 2 else (None, target) # Older IDE Versions did not specify an "id" or "name" tag while recording (example 4). We support these non-tag locators because the IDE still does. The ambiguity is easily handled in further processing.
     	return tag, value # Unknown tags raise an UnexpectedTagNameException in further processing.
     	
     
@@ -661,7 +682,7 @@ class SeleniumDriver(object):
         elif ttype == 'name':
             return self.driver.find_element_by_name(ttarget)
         elif ttype == 'link':
-            return self.driver.find_element_by_link_text(ttarget)
+            return self._find_element_by_link_text(ttarget)
         elif ttype == None: 
             try:
                 return self.driver.find_element_by_id(ttarget)
@@ -669,8 +690,32 @@ class SeleniumDriver(object):
                 return self.driver.find_element_by_name(ttarget) 
         else:
             raise UnexpectedTagNameException('no way to find targets "%s"' % target)
-        
-        
+    
+	
+    def _find_element_by_link_text(self, target):
+        # 1) exact-tag:
+        if target.startswith("exact:"):
+            return self.driver.find_element_by_link_text(target[6:])
+        # 2) regexp:
+	elif target.startswith('regexp:'):
+	    target = target [7:]
+	# 3) glob/ wildcards
+        else: 
+	    if target.startswith("glob:"):
+		target = target[5:]
+	    target = self._translateWilcardToRegex(target)
+	# Search by xpath for regexps and wildcards     
+	for target_elem in self.driver.find_elements_by_xpath("//a"):
+	    try:
+		text = target_elem.text
+		if text == re.match(target, text).group(0):
+		    return target_elem
+	    except:
+		pass
+	    else:
+		raise NoSuchElementException
+	
+	
     def _matches(self, expectedResult, result):
         """
         Try to match a result of a selenese command with its expected result.
@@ -700,8 +745,12 @@ class SeleniumDriver(object):
         else:
             if expectedResult.startswith("glob:"):
                 expectedResult = expectedResult[5:]
-            # using the "fnmatch" module method "fnmatchcase" (aliased to globmatchcase) in order to handle wildcards.
-            return globmatchcase(result, expectedResult)
+            expectedResult = self._translateWilcardToRegex(expectedResult)
+	    try:
+                return result == re.match(expectedResult, result).group(0)
+            except AttributeError:
+                return False
+	    
     
     
     def _isContained(self, pat, text):
@@ -712,6 +761,7 @@ class SeleniumDriver(object):
         @param text: a text in which the pattern should be found
         @return: true if found, false otherwise
         """
+	pat = pat.replace("...", "")
         # 1) regexp
         if pat.startswith('regexp:'):
             return re.search(pat[7:], text) is not None

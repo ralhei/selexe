@@ -29,7 +29,6 @@ class SelexeRunner(object):
         fp = open(self.filename)
         seleniumParser = SeleniumParser(fp)
         driver = webdriver.Firefox()
-        driver.implicitly_wait(0)
         baseURI = self.baseuri or seleniumParser.baseuri
         if baseURI.endswith('/'):
             baseURI = baseURI[:-1]
@@ -111,4 +110,4 @@ if __name__ == '__main__':
         res = s.run()
         if res:
             sys.stderr.write("\nVerification errors in %s: %s\n" % (selFilename, res))
-            sys.exit(1)
+    sys.exit(1)
