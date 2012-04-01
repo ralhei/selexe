@@ -68,7 +68,7 @@ class SelexeRunner(object):
             try:
                 sd(command, target, value)
             except:
-                logging.error('Command %s(%r, target=%r) failed.' % (command, target, value))
+                logging.error('Command %s(%r, %r) failed.' % (command, target, value))
                 raise
         return sd.getVerificationErrors()
 

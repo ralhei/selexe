@@ -284,12 +284,12 @@ class Test_SeleniumDriver(object):
         #
         # switch focus back to the main window
         self.sd('selectWindow', "null")
-        assert self.sd('getText', 'css=h1') == 'H1 text'
+        assert self.sd('getText', 'css=#h1_1') == 'H1 text'
         self.sd('assertNotTextPresent', 'This is a pop up')
         #
         # check failing when using a locator parameter which is not implemented yet
         with py.test.raises(NotImplementedError):
-            self.sd('selectWindow', "title=stekie")
+            self.sd('selectWindow', "stekie")
     
             
     def test_ElementPresent_method(self):
