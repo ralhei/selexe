@@ -279,7 +279,7 @@ class SeleniumDriver(object):
             funcNames = [key for (key, value) in userfunctions.__dict__.iteritems() \
                          if isinstance(value, types.FunctionType) and not key.startswith("_")]
             for funcName in funcNames:
-                newBoundMethod = new.instancemethod(seleniumcommand(getattr(userfunctions, funcName)), self)
+                newBoundMethod = new.instancemethod(seleniumcommand(getattr(userfunctions, funcName)), self, SeleniumDriver)
                 setattr(self, funcName, newBoundMethod)
             logging.info("User functions: " + ", ".join(funcNames))
         except ImportError:
@@ -343,6 +343,8 @@ class SeleniumDriver(object):
         @param target: a string determining an element in the HTML page
         @param value:  <not used>
         """
+	self.wait = True
+        self.driver.implicitly_wait(self.wait_for_timeout / 1000)
         self._find_target(target).click()
 
     @seleniumcommand
@@ -500,7 +502,7 @@ class SeleniumDriver(object):
                 if self.driver.find_element_by_xpath("//title").text == ttarget:
                     break
         else:
-           raise NotImplementedError('No way to find the window: use "name" or "title" locators of specify target as "null"')
+	    raise NotImplementedError('No way to find the window: use "name" or "title" locators of specify target as "null"')
 	    
     @seleniumcommand	
     def selectPopUp(self, target, value=None):
