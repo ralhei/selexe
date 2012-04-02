@@ -50,7 +50,7 @@ def test_fixtures():
     selexe = SelexeRunner('fixtures.sel', fixtures='selexeFixtures.py')
     res = selexe.run()
     assert res == []
-
+    
 
 def test_fixtures_fail():
     """run empty selenese test file, just to check whether fixtures work

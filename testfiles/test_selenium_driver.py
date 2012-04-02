@@ -23,7 +23,7 @@ class Test_SeleniumDriver(object):
     def setup_method(self, method):
         self.driver = webdriver.Firefox()
         self.sd = selenium_driver.SeleniumDriver(self.driver, BASE_URI)
-        self.sd.setTimeoutAndPoll(1000, 0.2) # during testing only wait 1sec until timeout should be raised
+        self.sd.setTimeoutAndPoll(1000, 1) # during testing only wait 1sec until timeout should be raised
 
     def teardown_method(self, method):
         self.driver.quit()
@@ -78,15 +78,15 @@ class Test_SeleniumDriver(object):
         with py.test.raises(RuntimeError):
             self.sd('waitForNotText', 'css=h1', 'H1 text')
             
-        # check waiting for text which is inserted on the page 3000 ms after clicking on a button
-        self.sd.setTimeoutAndPoll(10000, 0.2)
+        # check waiting for text which is inserted on the page 2000 ms after clicking on a button
+        self.sd.setTimeoutAndPoll(5000, 0.2)
         self.sd('click', 'id=textInsertDelay')
         self.sd('waitForTextPresent', 'Text was inserted')
         #
-        # check waiting for a text which is deleted on the page 3000 ms after clicking on a button
+        # check waiting for a text which is deleted on the page 2000 ms after clicking on a button
         self.sd('click', 'id=textRemoveDelay')
         self.sd('waitForNotTextPresent', 'Text was inserted')
-        self.sd.setTimeoutAndPoll(1000, 0.2)
+        self.sd.setTimeoutAndPoll(1000, 1)
         #
         # check that waiting for non-existing text finally raises RuntimeError a (after timeout):
         with py.test.raises(RuntimeError):
@@ -171,7 +171,7 @@ class Test_SeleniumDriver(object):
             self.sd('assertAttribute', '//select[@id="selectTest"]/option[' + optionLocator[1] + "]@selected", "true")   
         #
         # check failing using unknown option locator parameter
-        with py.test.raises(RuntimeError):
+        with py.test.raises(UnexpectedTagNameException):
             self.sd('select', 'id=selectTest', 'xpath=//option[@id="option3"]')
         #       
         # check failing with correct option locator parameters but incorrect values    
@@ -270,7 +270,7 @@ class Test_SeleniumDriver(object):
         #
         # check waiting for a non-existent pop up with specified timeout = 2.1s
         with py.test.raises(NoSuchWindowException):
-            self.sd('waitForPopUp', "no pop up", "2100")
+            self.sd('waitForPopUp', "no pop up", "1100")
         #
         # check failing when selecting "null" as target (not implemented yet)
         with py.test.raises(NotImplementedError):    
@@ -284,12 +284,12 @@ class Test_SeleniumDriver(object):
         #
         # switch focus back to the main window
         self.sd('selectWindow', "null")
-        assert self.sd('getText', 'css=h1') == 'H1 text'
+        assert self.sd('getText', 'css=#h1_1') == 'H1 text'
         self.sd('assertNotTextPresent', 'This is a pop up')
         #
         # check failing when using a locator parameter which is not implemented yet
         with py.test.raises(NotImplementedError):
-            self.sd('selectWindow', "title=stekie")
+            self.sd('selectWindow', "stekie")
     
             
     def test_ElementPresent_method(self):
@@ -456,6 +456,21 @@ class Test_SeleniumDriver(object):
         # assert that the text field's value attribute was filled correctly
         assert self.sd('getAttribute', 'id=id_text1@value') == 'a new text'
         
+    def test_Table_method(self):
+        ''' testing the table method'''
+        self.sd('open', '/static/page3')
+        #
+        # searching in a table with only a tbody element
+        self.sd('assertTable', 'css=table#firstTable.2.2', 'Manchester')
+        #
+        # searching in a table with thead and tbody elements. The order of these elements in the html code 
+        # does not correspond to the displayed order and thus the search address.
+        self.sd('assertTable', 'css=table#secondTable.2.2', 'Manchester')
+        #
+        # searching in a table with thead, tbody and tfoot elements. The order of these elements in the 
+        # html code does not correspond to the displayed order and thus the search address.
+        self.sd('assertTable', 'css=table#thirdTable.2.2', 'London')
+
         
     def test_Command_NotImplementedError(self):
         ''' checking that a non-existent command raises a NotImplementedError'''
