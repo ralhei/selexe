@@ -1,4 +1,5 @@
-import httplib, json, time
+import httplib
+import json
 from selenium.webdriver.common.action_chains import ActionChains
 
 

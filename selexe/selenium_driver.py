@@ -1,4 +1,8 @@
-import logging, time, re, types, new
+import logging
+import time
+import re
+import types
+import new
 ###
 from selenium.common.exceptions import NoSuchWindowException
 from selenium.common.exceptions import NoSuchElementException
@@ -6,7 +10,6 @@ from selenium.common.exceptions import NoAlertPresentException
 from selenium.common.exceptions import NoSuchAttributeException
 from selenium.common.exceptions import UnexpectedTagNameException
 from selenium.common.exceptions import NoSuchFrameException
-from selenium.common.exceptions import ElementNotVisibleException
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.alert import Alert
