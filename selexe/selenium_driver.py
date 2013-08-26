@@ -370,14 +370,8 @@ class SeleniumDriver(object):
         @param target: a string determining an element in the HTML page
         @param value:  <not used>
         """
-        for i in range(self.num_repeats):
-            try:
-                self._find_target(target).click()
-                break
-            except NoSuchElementException:
-                time.sleep(self.poll)
-        else:        
-            raise RuntimeError("Timed out after %d ms" % self.wait_for_timeout)
+        self._find_target(target).click()
+        
     
     @seleniumcommand
     def select(self, target, value):
