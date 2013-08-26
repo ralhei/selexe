@@ -20,8 +20,8 @@ def putRest(self, target, value):
     headers = {"Content-type": 'application/json'}
     connection.request('PUT', target, value, headers)
     assert connection.getresponse().status == 200
-    
-    
+
+
 def postRest(self, target, value):
     connection = _connect(self.base_url)
     headers = {"Content-type": 'application/json'}
@@ -84,7 +84,7 @@ def assertTextContainedInEachElement(self, target, value):
     target_elems = self.driver.find_elements_by_xpath(target)
     for target_elem in target_elems:
         assert self._isContained(value, target_elem.text)
- 
+
  
 def verifyValidation(self, target, value):
     """

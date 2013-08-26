@@ -177,7 +177,7 @@ def create_selenium_methods(cls):
         setattr(cls, seleniumMethodName, seleniumcommand(wrappedMethod))
 
 
-    for methodName in cls.__dict__.keys():
+    for methodName in cls.__dict__.keys():  # must loop over keys() as the dict gets modified while looping
         if methodName.startswith(GENERIC_METHOD_PREFIX):
             prefix = 'is' if methodName.endswith('Present') else 'get'
             decorate_method(cls, methodName, prefix, create_get_or_is)
@@ -235,7 +235,7 @@ def create_aliases(cls):
     from generic commands with suffix "Present". For the aliases the "Not" is moved away from the prefix and placed 
     before "Present"(most likely to increase readability), e.g. "verifyTextNotPresent" aliases to "verifyNotTextPresent".
     """
-    for methodName in cls.__dict__.keys():    
+    for methodName in cls.__dict__.keys():  # must loop over keys() as the dict gets modified while looping
         if re.match(r"(verifyNot|assertNot|waitForNot)\w+Present", methodName):
             method = getattr(cls, methodName)
             def aliasMethod(self, target, value=None):
@@ -282,6 +282,10 @@ class SeleniumDriver(object):
         Most methods are dynamically created through decorator functions (from 'wd_SEL*-methods) and hence are
         dynamically looked up in the class dictionary.
         """
+        if self.wait:
+            self.wait = False
+        else:
+            self.driver.implicitly_wait(0)
         try:
             method = getattr(self, command)
         except AttributeError:
@@ -359,7 +363,6 @@ class SeleniumDriver(object):
             pass
         self._find_target(target).click()
         
-
     @seleniumcommand
     def click(self, target, value=None):
         """
@@ -367,13 +370,12 @@ class SeleniumDriver(object):
         @param target: a string determining an element in the HTML page
         @param value:  <not used>
         """
-        for i in range (self.num_repeats):
+        for i in range(self.num_repeats):
             try:
                 self._find_target(target).click()
                 break
             except NoSuchElementException:
-                continue
-            time.sleep(self.poll)
+                time.sleep(self.poll)
         else:        
             raise RuntimeError("Timed out after %d ms" % self.wait_for_timeout)
     
@@ -396,7 +398,7 @@ class SeleniumDriver(object):
         target_elem = self._find_target(target)
         tag, tvalue = self._tag_and_value(value)
         select = Select(target_elem)
-        # the select command in the IDE does not execute javascript. So skip this command if javascript is executed 
+        # the select command in the IDE does not execute javascript. So skip this command if javascript is executed
         # and wait for the following click command to execute the click event which will lead you to the next page
         if not target_elem.find_elements_by_css_selector('option[onclick]'):
             #import pdb; pdb.set_trace()
@@ -414,7 +416,6 @@ class SeleniumDriver(object):
             else:
                 raise UnexpectedTagNameException("Unknown option locator tag: " + tag)
 
-    
     def _matchOptionText(self, target, tvalue):
         for option in target.find_elements_by_xpath("*"):
             text = option.text
@@ -506,7 +507,7 @@ class SeleniumDriver(object):
         """
         Wait for a popup window to appear and load up.
         @param target: the JavaScript window "name" of the window that will appear (not the text of the title bar).
-        @param value: the timeout in milliseconds, after which the function will raise an error. If this value 
+        @param value: the timeout in milliseconds, after which the function will raise an error. If this value
         is not specified, the default timeout will be used. See the setTimeoutAndPoll function for the default timeout.
         """
         timeout = self.wait_for_timeout if not value else int(value)
@@ -522,7 +523,7 @@ class SeleniumDriver(object):
         else:
             raise NoSuchWindowException("Timed out after %d ms" % timeout)
 
-    
+
     @seleniumcommand
     def selectWindow(self, target, value=None):
         """
@@ -719,14 +720,13 @@ class SeleniumDriver(object):
         # 4 f_transfectionprotocol -> None, f_transfectionprotocol
         # 5 id=f_transfectionprotocol -> id, f_transfectionprotocol
         """
-        if target.startswith('//'):  # Identify an xpath locator missing a tag by looking at the leading tokens. This separate handling saves this locator variant from a split operation which may cut it in two worthless pieces (example 3). 
-            tag, value = ('xpath', target) 
+        if target.startswith('//'):  # Identify an xpath locator missing a tag by looking at the leading tokens. This separate handling saves this locator variant from a split operation which may cut it in two worthless pieces (example 3).
+            tag, value = ('xpath', target)
         else: # Perform a split for all other locator types to get the tag. If there is no tag, specify it as None. 
             s = target.split('=', 1)
             tag, value = s if len(s) == 2 else (None, target) # Older IDE Versions did not specify an "id" or "name" tag while recording (example 4). We support these non-tag locators because the IDE still does. The ambiguity is easily handled in further processing.
         return tag, value # Unknown tags raise an UnexpectedTagNameException in further processing.
-        
-    
+
     def _find_target(self, target):
         """
         Select and execute the appropriate find_element_* method for an element locator.
@@ -747,15 +747,14 @@ class SeleniumDriver(object):
                 return self.driver.find_element_by_partial_link_text(ttarget.replace('*', ''))
             else:
                 return self.driver.find_element_by_link_text(ttarget)
-        elif ttype == None: 
+        elif ttype == None:
             try:
                 return self.driver.find_element_by_id(ttarget)
             except:
                 return self.driver.find_element_by_name(ttarget) 
         else:
             raise UnexpectedTagNameException('no way to find targets "%s"' % target)
-       
-    
+
     def _matches(self, expectedResult, result):
         """
         Try to match a result of a selenese command with its expected result.
@@ -787,9 +786,7 @@ class SeleniumDriver(object):
             return result == re.match(expectedResult, result).group(0)
         except AttributeError:
             return False
-        
-    
-    
+
     def _isContained(self, pat, text):
         """
         Verify that a string pattern can be found somewhere in a text.
@@ -844,5 +841,3 @@ class SeleniumDriver(object):
         wc = re.sub(r"(?<!\\)\*", r".*", wc)
         wc = re.sub(r"(?<!\\)\?", r".", wc)
         return wc
-    
-    
