@@ -22,6 +22,13 @@ def putRest(self, target, value):
     assert connection.getresponse().status == 200
 
 
+def postRest(self, target, value):
+    connection = _connect(self.base_url)
+    headers = {"Content-type": 'application/json'}
+    connection.request('POST', target, value, headers)
+    assert connection.getresponse().status == 200
+
+
 def deleteRest(self, target, value):
     """
     Selenium.prototype.doDeleteRest = function(url) {
@@ -76,8 +83,8 @@ def assertTextContainedInEachElement(self, target, value):
     """
     target_elems = self.driver.find_elements_by_xpath(target)
     for target_elem in target_elems:
-        assert self.driver._isContained(value, target_elem.text)
- 
+        assert self._isContained(value, target_elem.text)
+
  
 def verifyValidation(self, target, value):
     """
@@ -139,8 +146,9 @@ def verifyValidation(self, target, value):
     """
     expectedResult = value.split(':') if ':' in value else [value, ''] # e.g. 'w Error: Only integers allowed' or just 'w'
     expectedClassValue, expectedValidationMsg = expectedResult
-    self.waitForAttribute(target + '@class', expectedClassValue.strip())
+    #self.waitForAttribute(target + '@class', expectedClassValue.strip())
     target_elem = self._find_target(target)
+    assert expectedClassValue.strip() in target_elem.get_attribute('class')
     ActionChains(self.driver).move_to_element(target_elem).perform()
-    assert self.getText('//*[@id="validationMsg"]').strip() == expectedValidationMsg.strip()
+    self.waitForText('id=validationMsg', expectedValidationMsg.strip())
     ActionChains(self.driver).move_by_offset(target_elem.size["width"] / 2 + 1, 0).perform()

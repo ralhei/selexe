@@ -4,6 +4,7 @@ from optparse import OptionParser
 DEFAULT_FIXTURES_FILE = 'selexeFixtures.py'
 
 options = [
+    (('--timeit',), dict(action='store_true', default=False, help="execute selenium tests directly from *.sel files")),
     (('--selexe',), dict(action='store_true', help="execute selenium tests directly from *.sel files")),
     (('--baseuri', '-U'), dict(action='store', default=None,
                           help='base URI of server to run the selenium tests, e.g. "http://localhost:8080"')),
