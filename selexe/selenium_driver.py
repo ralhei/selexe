@@ -215,15 +215,15 @@ def seleniumcommand(method):
 
 
 def assertPageLoad(self):
-    # We assume a new page to be loaded when the IDs of the the html tags gained from two consecutive readouts differ.
+    # We assume a new page to be loaded when the IDs of the html tags gained from two consecutive readouts differ.
     for i in range (self.num_repeats):
         time.sleep(self.poll)
         try:
             newPageId = self._find_target('css=html')._id
-        except WebDriverException:
+        except WebDriverException, NoSuchElementException:
             continue
         if (self.waitForPageId != newPageId):
-            self.waitForPageId == None
+            self.waitForPageId = None
             break
     else:
         raise RuntimeError("Timed out after %d ms" % self.wait_for_timeout)
@@ -259,7 +259,7 @@ class SeleniumDriver(object):
         # 'storedVariables' is used through the 'create_store' decorator above to store values during a selenium run:
         self.storedVariables = {}
         # Sometimes it is necessary to confirm that a page has actually loaded. We use this variable for it.
-        # Take a look at seleniumMethod().
+        # Take a look at seleniumMethod(), assertPageLoad() and self.clickAndWait().
         self.waitForPageId = None
       
     def initVerificationErrors(self):
@@ -353,7 +353,10 @@ class SeleniumDriver(object):
         @param target: a string determining an element in the HTML page
         @param value:  <not used>
         """
-        self.waitForPageId = self._find_target('css=html')._id
+        try:
+            self.waitForPageId = self._find_target('css=html')._id
+        except:
+            pass
         self._find_target(target).click()
         
 
