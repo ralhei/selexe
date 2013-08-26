@@ -255,7 +255,6 @@ class SeleniumDriver(object):
         self.initVerificationErrors()
         self._importUserFunctions()
         self.setTimeoutAndPoll(20000, 0.5)
-        self.wait = False
         # 'storedVariables' is used through the 'create_store' decorator above to store values during a selenium run:
         self.storedVariables = {}
         # Sometimes it is necessary to confirm that a page has actually loaded. We use this variable for it.
@@ -282,10 +281,6 @@ class SeleniumDriver(object):
         Most methods are dynamically created through decorator functions (from 'wd_SEL*-methods) and hence are
         dynamically looked up in the class dictionary.
         """
-        if self.wait:
-            self.wait = False
-        else:
-            self.driver.implicitly_wait(0)
         try:
             method = getattr(self, command)
         except AttributeError:
@@ -347,7 +342,6 @@ class SeleniumDriver(object):
         @param target: URL (string)
         @param value: <not used>
         """
-        self.wait = True
         self.driver.get(self.base_url + target)
 
     @seleniumcommand
@@ -370,8 +364,16 @@ class SeleniumDriver(object):
         @param target: a string determining an element in the HTML page
         @param value:  <not used>
         """
-        self._find_target(target).click()
-        
+        for i in range(self.num_repeats):
+            try:
+                self._find_target(target).click()
+                print 'clicked'
+                break
+            except NoSuchElementException:
+                time.sleep(self.poll)
+        else:        
+            raise RuntimeError("Timed out after %d ms" % self.wait_for_timeout)
+    
     
     @seleniumcommand
     def select(self, target, value):
@@ -553,7 +555,6 @@ class SeleniumDriver(object):
         """
         Alias for selectWindow.
         """
-        self.wait_for_page()
         self.selectWindow(target, value)
     
     @seleniumcommand
