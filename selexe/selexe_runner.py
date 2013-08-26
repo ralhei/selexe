@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
-import sys, os, logging, pdb
+import sys, os, logging, pdb, functools
+from timeit import Timer
 ###
 from selenium import webdriver
 from parse_sel import SeleniumParser
 from selenium_driver import SeleniumDriver
 from cmdargs import DEFAULT_FIXTURES_FILE
-
 
 class SelexeError(Exception):
     """Custom Selexe error class"""
@@ -17,11 +17,12 @@ class SelexeRunner(object):
     """
     Selenium file execution class
     """
-    def __init__(self, filename, baseuri=None, fixtures=None, pmd=False):
+    def __init__(self, filename, baseuri=None, fixtures=None, pmd=False, timeit=False):
         self.filename = filename
         self.baseuri= baseuri
         self.setUpFunc, self.tearDownFunc = findFixtureFunctions(fixtures)
         self.pmd = pmd
+        self.timeit = timeit
 
     def run(self):
         """Start execution of selenium tests (within setUp and tearDown wrappers)"""
@@ -49,7 +50,10 @@ class SelexeRunner(object):
             sd.initVerificationErrors()
 
         try:
-            return self._executeSelenium(seleniumParser, sd)
+            if (self.timeit):
+                return self._executeSeleniumAndTimeIt(seleniumParser, sd)
+            else:
+                return self._executeSelenium(seleniumParser, sd)
         except:
             if self.pmd:
                 exc = sys.exc_info()
@@ -62,6 +66,7 @@ class SelexeRunner(object):
                 self.tearDownFunc(sd)
                 logging.info("tearDown() finished")
 
+
     def _executeSelenium(self, seleniumParser, sd):
         """Execute the actual selenium statements found in *sel file"""
         for command, target, value in seleniumParser:
@@ -71,7 +76,19 @@ class SelexeRunner(object):
                 logging.error('Command %s(%r, %r) failed.' % (command, target, value))
                 raise
         return sd.getVerificationErrors()
-
+        
+        
+    def _executeSeleniumAndTimeIt(self, seleniumParser, sd):
+        """Execute the actual selenium statements found in *sel file and time each command"""
+        for command, target, value in seleniumParser:
+            try:
+                time = Timer(functools.partial(sd, command, target, value)).timeit(number=1)
+                logging.info("Executed in %f sec" % (time))
+            except:
+                logging.error('Command %s(%r, %r) failed.' % (command, target, value))
+                raise
+        return sd.getVerificationErrors()
+        
 
 def findFixtureFunctions(modulePath=None):
     if modulePath == DEFAULT_FIXTURES_FILE and not os.path.exists(DEFAULT_FIXTURES_FILE):
@@ -106,7 +123,7 @@ if __name__ == '__main__':
     (options, args) = parse_cmd_args()
     logging.basicConfig(level=options.logging)
     for selFilename in args:
-        s = SelexeRunner(selFilename, baseuri=options.baseuri, pmd=options.pmd, fixtures=options.fixtures)
+        s = SelexeRunner(selFilename, baseuri=options.baseuri, pmd=options.pmd, fixtures=options.fixtures, timeit=options.timeit)
         res = s.run()
         if res:
             sys.stderr.write("\nVerification errors in %s: %s\n" % (selFilename, res))
