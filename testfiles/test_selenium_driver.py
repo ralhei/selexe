@@ -1,7 +1,7 @@
 """
 UT module to test selenium-driver commands
 """
-import sys, py.test
+import sys, py.test, time
 sys.path.insert(0, '..')
 ###
 from selenium import webdriver
@@ -13,6 +13,7 @@ from selenium.common.exceptions import UnexpectedTagNameException
 from selenium.common.exceptions import NoSuchFrameException
 from selenium.common.exceptions import NoSuchAttributeException
 from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.firefox import firefox_profile
 
 from test_execute_sel_files import setup_module, teardown_module
 
@@ -97,12 +98,11 @@ class Test_SeleniumDriver(object):
             self.sd('waitForNotText', 'css=h1', 'H1 text')
 
              
-
     def test_Alert_methods(self):
         """check alert methods"""
         # check that an alert can be found
         self.sd('open', '/static/page1')
-        self.sd('clickAndWait', '//input[@type="button" and @value="alert button"]')
+        self.sd('click', '//input[@type="button" and @value="alert button"]')
         self.sd('assertAlert', 'hello')
         #
         # check that a missing alert raises an exception
@@ -231,13 +231,13 @@ class Test_SeleniumDriver(object):
         self.sd('mouseOver', '//*[@name="checkbox1"]')
         #
         # click on the current position
-        ActionChains(self.driver).click().perform()     
+        ActionChains(self.driver).click().perform()
         #
         # verify that checkbox1 is checked now
         self.sd('assertAttribute', '//*[@name="checkbox1"]@checked', 'true')
         #
         # move the mouse away from checkbox1
-        self.sd('mouseOut', '//*[@name="checkbox1"]')   
+        self.sd('mouseOut', '//*[@name="checkbox1"]')
         #
         # click on the current position
         ActionChains(self.driver).click().perform()
@@ -317,6 +317,7 @@ class Test_SeleniumDriver(object):
         # check the storing of the result of the ElementPresent method
         self.sd('storeElementPresent', '//div[@class="class"]', 'elementPresent')
         assert self.sd.storedVariables['elementPresent'] == False  
+        
         
     def test_SeleniumStringPatterns(self):
         """testing string match parameters regexp, exact and glob in _match and _isContained methods"""

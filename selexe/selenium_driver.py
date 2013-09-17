@@ -6,7 +6,6 @@ from selenium.common.exceptions import NoAlertPresentException
 from selenium.common.exceptions import NoSuchAttributeException
 from selenium.common.exceptions import UnexpectedTagNameException
 from selenium.common.exceptions import NoSuchFrameException
-from selenium.common.exceptions import ElementNotVisibleException
 from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.action_chains import ActionChains
@@ -259,7 +258,7 @@ class SeleniumDriver(object):
         self.storedVariables = {}
         # Sometimes it is necessary to confirm that a page has actually loaded. We use this variable for it.
         # Take a look at seleniumMethod(), assertPageLoad() and self.clickAndWait().
-        self.waitForPageId = None
+        self.waitForPageId = False
       
     def initVerificationErrors(self):
         """
@@ -367,7 +366,6 @@ class SeleniumDriver(object):
         for i in range(self.num_repeats):
             try:
                 self._find_target(target).click()
-                print 'clicked'
                 break
             except NoSuchElementException:
                 time.sleep(self.poll)
@@ -508,6 +506,8 @@ class SeleniumDriver(object):
         """
         timeout = self.wait_for_timeout if not value else int(value)
         num_repeats = int(timeout / 1000 / self.poll) 
+        if (target == "null"):
+            raise NotImplementedError
         for i in range(num_repeats):
             try:
                 self._selectWindow('name=' + target)
@@ -792,7 +792,6 @@ class SeleniumDriver(object):
         """
         # strings of each pattern may end with "..." to shorten them.
         pat = self._sel_pattern_abbreviation(pat)
-       
         # 1) regexp
         if pat.startswith('regexp:'):
             return re.search(pat[7:], text) is not None
@@ -810,14 +809,6 @@ class SeleniumDriver(object):
     def _sel_pattern_abbreviation(self, aString):
         if aString.endswith("..."): 
             aString = aString.replace("...", ".*")
-        if aString.startswith("regexp:"):
-            pass
-        elif aString.startswith("exact:"):
-            aString = aString.replace("exact", "regexp")
-        elif aString.startswith("glob:"):
-            aString = aString.replace("glob", "regexp")
-        else:
-            aString = "regexp:" + aString
         return aString
         
     

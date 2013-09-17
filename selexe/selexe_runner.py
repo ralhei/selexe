@@ -8,6 +8,7 @@ from parse_sel import SeleniumParser
 from selenium_driver import SeleniumDriver
 from cmdargs import DEFAULT_FIXTURES_FILE
 
+
 class SelexeError(Exception):
     """Custom Selexe error class"""
     pass
@@ -23,6 +24,7 @@ class SelexeRunner(object):
         self.setUpFunc, self.tearDownFunc = findFixtureFunctions(fixtures)
         self.pmd = pmd
         self.timeit = timeit
+        
 
     def run(self):
         """Start execution of selenium tests (within setUp and tearDown wrappers)"""
@@ -39,6 +41,7 @@ class SelexeRunner(object):
             return self._wrapExecution(seleniumParser, sd)
         finally:
             driver.quit()
+
 
     def _wrapExecution(self, seleniumParser, sd):
         """Wrap execution of selenium tests in setUp and tearDown functions if available"""
