@@ -6,7 +6,6 @@ from selenium.common.exceptions import NoAlertPresentException
 from selenium.common.exceptions import NoSuchAttributeException
 from selenium.common.exceptions import UnexpectedTagNameException
 from selenium.common.exceptions import NoSuchFrameException
-from selenium.common.exceptions import ElementNotVisibleException
 from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.action_chains import ActionChains
@@ -215,12 +214,12 @@ def seleniumcommand(method):
 
 
 def assertPageLoad(self):
-    # We assume a new page to be loaded when the IDs of the the html tags gained from two consecutive readouts differ.
+    # We assume a new page to be loaded when the IDs of the html tags gained from two consecutive readouts differ.
     for i in range (self.num_repeats):
         time.sleep(self.poll)
         try:
             newPageId = self._find_target('css=html')._id
-        except WebDriverException:
+        except WebDriverException, NoSuchElementException:
             continue
         if (self.waitForPageId != newPageId):
             self.waitForPageId = None
@@ -255,12 +254,11 @@ class SeleniumDriver(object):
         self.initVerificationErrors()
         self._importUserFunctions()
         self.setTimeoutAndPoll(20000, 0.5)
-        self.wait = False
         # 'storedVariables' is used through the 'create_store' decorator above to store values during a selenium run:
         self.storedVariables = {}
         # Sometimes it is necessary to confirm that a page has actually loaded. We use this variable for it.
-        # Take a look at seleniumMethod().
-        self.waitForPageId = None
+        # Take a look at seleniumMethod(), assertPageLoad() and self.clickAndWait().
+        self.waitForPageId = False
       
     def initVerificationErrors(self):
         """
@@ -282,10 +280,6 @@ class SeleniumDriver(object):
         Most methods are dynamically created through decorator functions (from 'wd_SEL*-methods) and hence are
         dynamically looked up in the class dictionary.
         """
-        if self.wait:
-            self.wait = False
-        else:
-            self.driver.implicitly_wait(0)
         try:
             method = getattr(self, command)
         except AttributeError:
@@ -347,7 +341,6 @@ class SeleniumDriver(object):
         @param target: URL (string)
         @param value: <not used>
         """
-        self.wait = True
         self.driver.get(self.base_url + target)
 
     @seleniumcommand
@@ -357,7 +350,10 @@ class SeleniumDriver(object):
         @param target: a string determining an element in the HTML page
         @param value:  <not used>
         """
-        self.waitForPageId = self._find_target('css=html')._id
+        try:
+            self.waitForPageId = self._find_target('css=html')._id
+        except:
+            pass
         self._find_target(target).click()
         
     @seleniumcommand
@@ -375,6 +371,7 @@ class SeleniumDriver(object):
                 time.sleep(self.poll)
         else:        
             raise RuntimeError("Timed out after %d ms" % self.wait_for_timeout)
+    
     
     @seleniumcommand
     def select(self, target, value):
@@ -509,6 +506,8 @@ class SeleniumDriver(object):
         """
         timeout = self.wait_for_timeout if not value else int(value)
         num_repeats = int(timeout / 1000 / self.poll) 
+        if (target == "null"):
+            raise NotImplementedError
         for i in range(num_repeats):
             try:
                 self._selectWindow('name=' + target)
@@ -556,7 +555,6 @@ class SeleniumDriver(object):
         """
         Alias for selectWindow.
         """
-        self.wait_for_page()
         self.selectWindow(target, value)
     
     @seleniumcommand
@@ -794,7 +792,6 @@ class SeleniumDriver(object):
         """
         # strings of each pattern may end with "..." to shorten them.
         pat = self._sel_pattern_abbreviation(pat)
-       
         # 1) regexp
         if pat.startswith('regexp:'):
             return re.search(pat[7:], text) is not None
@@ -812,14 +809,6 @@ class SeleniumDriver(object):
     def _sel_pattern_abbreviation(self, aString):
         if aString.endswith("..."): 
             aString = aString.replace("...", ".*")
-        if aString.startswith("regexp:"):
-            pass
-        elif aString.startswith("exact:"):
-            aString = aString.replace("exact", "regexp")
-        elif aString.startswith("glob:"):
-            aString = aString.replace("glob", "regexp")
-        else:
-            aString = "regexp:" + aString
         return aString
         
     
