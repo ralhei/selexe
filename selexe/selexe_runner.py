@@ -18,12 +18,24 @@ class SelexeRunner(object):
     """
     Selenium file execution class
     """
-    def __init__(self, filename, baseuri=None, fixtures=None, pmd=False, timeit=False):
+    driver_classes = {
+        'firefox': webdriver.Firefox,
+        'chrome': webdriver.Chrome,
+        'ie': webdriver.Ie,
+        'opera': webdriver.Opera,
+        'safari': webdriver.Safari,
+        'phantomjs': webdriver.PhantomJS,
+        'android': webdriver.Android,
+        'remote': webdriver.Remote,
+    }
+
+    def __init__(self, filename, baseuri=None, fixtures=None, pmd=False, timeit=False, driver='firefox'):
         self.filename = filename
         self.baseuri= baseuri
         self.setUpFunc, self.tearDownFunc = findFixtureFunctions(fixtures)
         self.pmd = pmd
         self.timeit = timeit
+        self.driver = driver
         
 
     def run(self):
@@ -31,7 +43,7 @@ class SelexeRunner(object):
         logging.info('Selexe working on file %s' % self.filename)
         fp = open(self.filename)
         seleniumParser = SeleniumParser(fp)
-        driver = webdriver.Firefox()
+        driver = self.driver_classes[self.driver]()
         baseURI = self.baseuri or seleniumParser.baseuri
         if baseURI and baseURI.endswith('/'):
             baseURI = baseURI[:-1]
@@ -126,7 +138,7 @@ if __name__ == '__main__':
     (options, args) = parse_cmd_args()
     logging.basicConfig(level=options.logging)
     for selFilename in args:
-        s = SelexeRunner(selFilename, baseuri=options.baseuri, pmd=options.pmd, fixtures=options.fixtures, timeit=options.timeit)
+        s = SelexeRunner(selFilename, baseuri=options.baseuri, pmd=options.pmd, fixtures=options.fixtures, timeit=options.timeit, driver=options.driver)
         res = s.run()
         if res:
             sys.stderr.write("\nVerification errors in %s: %s\n" % (selFilename, res))

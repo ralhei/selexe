@@ -1,4 +1,4 @@
-import logging, time, re, types, new
+import logging, time, re, types, new, json
 ###
 from selenium.common.exceptions import NoSuchWindowException
 from selenium.common.exceptions import NoSuchElementException
@@ -654,7 +654,11 @@ class SeleniumDriver(object):
         @param value: variable name
         @return: the value of the specified attribute
         """
-        return value, '%s' % self.driver.execute_script('return eval(\'%s\');' % target.replace('\'', '\\\''))
+        result = self.driver.execute_script('return eval(\'%s\');' % target.replace('\'', '\\\''))
+        if isinstance(result, basestring):
+            return value, result
+        # NOTE: selenium server converts 'infinity', 'undefined' and 'NaN' to null
+        return value, json.dumps(result)
     
      
     def wd_SEL_Text(self, target, value):
