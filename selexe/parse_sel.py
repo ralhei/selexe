@@ -1,4 +1,6 @@
-import re, BeautifulSoup
+import re
+import os
+import BeautifulSoup
 from htmlentitydefs import name2codepoint
 
 

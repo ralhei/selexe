@@ -33,7 +33,7 @@ class SelexeRunner(object):
         seleniumParser = SeleniumParser(fp)
         driver = webdriver.Firefox()
         baseURI = self.baseuri or seleniumParser.baseuri
-        if baseURI.endswith('/'):
+        if baseURI and baseURI.endswith('/'):
             baseURI = baseURI[:-1]
         logging.info('baseURI: %s' % baseURI)
         try:

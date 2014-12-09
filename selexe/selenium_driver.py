@@ -159,7 +159,7 @@ def create_selenium_methods(cls):
     GENERIC_METHOD_PREFIX = 'wd_SEL_'
     lstr = len(GENERIC_METHOD_PREFIX)
 
-    def decorate_method(cls, methodName, prefix, decoratorFunc):
+    def decorate_method(cls, methodName, prefix, decoratorFunc, waitDefault=True):
         """
         This method double-decorates a generic webdriver command.
         1. Decorate it with one of the create_get, create_verify... decorators.
@@ -171,7 +171,7 @@ def create_selenium_methods(cls):
         seleniumMethodName = prefix + methodName[lstr:]
         func = cls.__dict__[methodName]
         wrappedMethod = decoratorFunc(func)
-        wrappedMethod.wait_for_page = getattr(func, 'wait_for_page', True)
+        wrappedMethod.wait_for_page = getattr(func, 'wait_for_page', waitDefault)
         wrappedMethod.__name__ = seleniumMethodName
         setattr(cls, seleniumMethodName, seleniumcommand(wrappedMethod))
 
@@ -184,8 +184,8 @@ def create_selenium_methods(cls):
             decorate_method(cls, methodName, 'verifyNot', create_verifyNot)
             decorate_method(cls, methodName, 'assert', create_assert)
             decorate_method(cls, methodName, 'assertNot', create_assertNot)
-            decorate_method(cls, methodName, 'waitFor', create_waitFor)
-            decorate_method(cls, methodName, 'waitForNot', create_waitForNot)
+            decorate_method(cls, methodName, 'waitFor', create_waitFor, False)
+            decorate_method(cls, methodName, 'waitForNot', create_waitForNot, False)
             decorate_method(cls, methodName, 'store', create_store)
     return cls
 
@@ -219,7 +219,7 @@ def assertPageLoad(self):
         time.sleep(self.poll)
         try:
             newPageId = self._find_target('css=html')._id
-        except WebDriverException, NoSuchElementException:
+        except (WebDriverException, NoSuchElementException):
             continue
         if (self.waitForPageId != newPageId):
             self.waitForPageId = None
@@ -234,13 +234,23 @@ def create_aliases(cls):
     from generic commands with suffix "Present". For the aliases the "Not" is moved away from the prefix and placed 
     before "Present"(most likely to increase readability), e.g. "verifyTextNotPresent" aliases to "verifyNotTextPresent".
     """
+    match = re.compile(r"(verifyNot|assertNot|waitForNot)\w+Present").match
     for methodName in cls.__dict__.keys():  # must loop over keys() as the dict gets modified while looping
-        if re.match(r"(verifyNot|assertNot|waitForNot)\w+Present", methodName):
+        if match(methodName):
             method = getattr(cls, methodName)
             def aliasMethod(self, target, value=None):
                 return method(self, target, value)
             alias = methodName.replace("Not", "").replace("Present", "NotPresent")
             setattr(cls, alias, aliasMethod)
+    # shortcuts
+    for shortcutName, methodName in (
+        ('store', 'storeExpression'),
+
+        ):
+        method = getattr(cls, methodName)
+        def aliasMethod(self, target, value=None):
+            return method(self, target, value)
+        setattr(cls, shortcutName, aliasMethod)
     return cls
 
 
@@ -250,7 +260,7 @@ def create_aliases(cls):
 class SeleniumDriver(object):
     def __init__(self, driver, base_url):
         self.driver = driver
-        self.base_url = base_url
+        self.base_url = base_url or ''
         self.initVerificationErrors()
         self._importUserFunctions()
         self.setTimeoutAndPoll(20000, 0.5)
@@ -514,7 +524,7 @@ class SeleniumDriver(object):
                 self.driver.switch_to_window(0)
                 self._find_target('css=html')._id
                 break
-            except NoSuchWindowException, WebdriverException:
+            except (NoSuchWindowException, WebDriverException):
                 time.sleep(self.poll)
         else:
             raise NoSuchWindowException("Timed out after %d ms" % timeout)
@@ -625,6 +635,26 @@ class SeleniumDriver(object):
         if attrValue is None:
             raise NoSuchAttributeException
         return value, attrValue.strip()
+
+
+    def wd_SEL_Expression(self, target, value):
+        """
+        Get given expression value
+        @param target: value to store
+        @param value: variable name
+        @return: the value of the specified attribute
+        """
+        return value, target
+
+
+    def wd_SEL_Eval(self, target, value):
+        """
+        Get value returned by given javascript expression
+        @param target: value to store
+        @param value: variable name
+        @return: the value of the specified attribute
+        """
+        return value, '%s' % self.driver.execute_script('return eval(\'%s\');' % target.replace('\'', '\\\''))
     
      
     def wd_SEL_Text(self, target, value):
