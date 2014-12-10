@@ -29,13 +29,14 @@ class SelexeRunner(object):
         'remote': webdriver.Remote,
     }
 
-    def __init__(self, filename, baseuri=None, fixtures=None, pmd=False, timeit=False, driver='firefox'):
+    def __init__(self, filename, baseuri=None, fixtures=None, pmd=False, timeit=False, driver='firefox', **options):
         self.filename = filename
-        self.baseuri= baseuri
+        self.baseuri = baseuri
         self.setUpFunc, self.tearDownFunc = findFixtureFunctions(fixtures)
         self.pmd = pmd
         self.timeit = timeit
         self.driver = driver
+        self.options = options
         
 
     def run(self):
@@ -43,7 +44,7 @@ class SelexeRunner(object):
         logging.info('Selexe working on file %s' % self.filename)
         fp = open(self.filename)
         seleniumParser = SeleniumParser(fp)
-        driver = self.driver_classes[self.driver]()
+        driver = self.driver_classes[self.driver](**self.options)
         baseURI = self.baseuri or seleniumParser.baseuri
         if baseURI and baseURI.endswith('/'):
             baseURI = baseURI[:-1]
