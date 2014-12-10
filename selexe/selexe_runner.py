@@ -107,6 +107,11 @@ class SelexeRunner(object):
         
 
 def findFixtureFunctions(modulePath=None):
+    if hasattr(modulePath, '__iter__') and all(callable(i) for i in modulePath):
+        return modulePath[0], modulePath[1]
+    if callable(modulePath):
+        return modulePath, None
+
     if modulePath == DEFAULT_FIXTURES_FILE and not os.path.exists(DEFAULT_FIXTURES_FILE):
         # The default fixtures file could be missing, then just no fixtures will be used
         modulePath = None
