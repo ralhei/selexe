@@ -654,11 +654,7 @@ class SeleniumDriver(object):
         @param value: variable name
         @return: the value of the specified attribute
         """
-        result = self.driver.execute_script('return eval(\'%s\');' % target.replace('\'', '\\\''))
-        if isinstance(result, basestring):
-            return value, result
-        # NOTE: selenium server converts 'infinity', 'undefined' and 'NaN' to null
-        return value, json.dumps(result)
+        return value, self.driver.execute_script('var r=eval(\'%s\');return \'\'+(r===undefined?null:r);' % target.replace('\'', '\\\''))
     
      
     def wd_SEL_Text(self, target, value):
