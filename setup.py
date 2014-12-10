@@ -11,6 +11,8 @@ f = open(os.path.join(here, 'doc', 'intro.rst'))
 long_description = f.read()
 f.close()
 
+# Import avoiding inner import errors
+os.environ['RAN_BY_SETUP_PY'] = True
 from selexe import __version__
 
 setup(name='selexe',
