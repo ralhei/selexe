@@ -605,9 +605,13 @@ class SeleniumDriver(object):
     
    
     def wd_SEL_Location(self, target, value=None):
-        url = self.driver.current_url
-        return True, self._isContained(target, url)
-   
+        """
+        Get absolute url of current page
+        :param target:
+        :param value:
+        :return:
+        """
+        return target, self.driver.current_url
    
     def wd_SEL_ElementPresent(self, target, value=None):        
         """
