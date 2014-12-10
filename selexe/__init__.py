@@ -3,7 +3,7 @@ try:
     from selexe_runner import SelexeRunner, SelexeError
 except ImportError:
     import os
-    if not os.environ.get('RAN_BY_SETUP_PY', False):
+    if not 'RAN_BY_SETUP_PY' in os.environ:
         raise
 
 import warnings
