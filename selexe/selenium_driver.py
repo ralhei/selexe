@@ -347,10 +347,14 @@ class SeleniumDriver(object):
     @seleniumcommand
     def open(self, target, value=None):
         """
-        Open a URL in the browser
+        Open a URL in the browser and wait until the browser receives a new page
         @param target: URL (string)
         @param value: <not used>
         """
+        try:
+            self.waitForPageId = self._find_target('css=html')._id
+        except:
+            pass
         self.driver.get(self.base_url + target)
 
     @seleniumcommand
@@ -658,7 +662,21 @@ class SeleniumDriver(object):
         @param value: variable name
         @return: the value of the specified attribute
         """
-        return value, self.driver.execute_script('var r=eval(\'%s\');return \'\'+(r===undefined?null:r);' % target.replace('\'', '\\\''))
+        reset = ['document'] # ensure consistent behavior
+        js = (
+            'var window = window,'
+            '    %s,'
+            '    storedVars = %s,'
+            '    r = eval(\'%s\');'
+            'return [\'\'+(r===undefined?null:r), storedVars];'
+        ) % (
+            ',    '.join('%s = undefined' % i for i in reset),
+            json.dumps(self.storedVariables),
+            target.replace('\'', '\\\''),
+        )
+        print js
+        result, self.storedVariables = self.driver.execute_script(js)
+        return value, result
     
      
     def wd_SEL_Text(self, target, value):

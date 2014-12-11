@@ -18,7 +18,9 @@ class SelexeRunner(object):
     """
     Selenium file execution class
     """
-    driver_classes = {
+    parser_class = SeleniumParser
+    driver_class = SeleniumDriver
+    webdriver_classes = {
         'firefox': webdriver.Firefox,
         'chrome': webdriver.Chrome,
         'ie': webdriver.Ie,
@@ -32,10 +34,10 @@ class SelexeRunner(object):
     def __init__(self, filename, baseuri=None, fixtures=None, pmd=False, timeit=False, driver='firefox', **options):
         self.filename = filename
         self.baseuri = baseuri
-        self.setUpFunc, self.tearDownFunc = findFixtureFunctions(fixtures)
+        self.setUpFunc, self.tearDownFunc = self.findFixtureFunctions(fixtures)
         self.pmd = pmd
         self.timeit = timeit
-        self.driver = driver
+        self.webdriver = driver
         self.options = options
         
 
@@ -43,14 +45,14 @@ class SelexeRunner(object):
         """Start execution of selenium tests (within setUp and tearDown wrappers)"""
         logging.info('Selexe working on file %s' % self.filename)
         fp = open(self.filename)
-        seleniumParser = SeleniumParser(fp)
-        driver = self.driver_classes[self.driver](**self.options)
+        seleniumParser = self.parser_class(fp)
+        driver = self.webdriver_classes[self.webdriver](**self.options)
         baseURI = self.baseuri or seleniumParser.baseuri
         if baseURI and baseURI.endswith('/'):
             baseURI = baseURI[:-1]
         logging.info('baseURI: %s' % baseURI)
         try:
-            sd = SeleniumDriver(driver, baseURI)
+            sd = self.driver_class(driver, baseURI)
             return self._wrapExecution(seleniumParser, sd)
         finally:
             driver.quit()
@@ -89,7 +91,7 @@ class SelexeRunner(object):
             try:
                 sd(command, target, value)
             except:
-                logging.error('Command %s(%r, %r) failed.' % (command, target, value))
+                logging.error('Command %s(%r, %r) failed on \'%s\'.' % (command, target, value, sd.driver.current_url))
                 raise
         return sd.getVerificationErrors()
         
@@ -101,42 +103,44 @@ class SelexeRunner(object):
                 time = Timer(functools.partial(sd, command, target, value)).timeit(number=1)
                 logging.info("Executed in %f sec" % (time))
             except:
-                logging.error('Command %s(%r, %r) failed.' % (command, target, value))
+                logging.error('Command %s(%r, %r) failed on \'%s\'.' % (command, target, value, sd.driver.current_url))
                 raise
         return sd.getVerificationErrors()
         
+    @staticmethod
+    def findFixtureFunctions(modulePath=None):
+        if hasattr(modulePath, '__iter__') and all(callable(i) for i in modulePath):
+            return modulePath[0], modulePath[1]
+        if callable(modulePath):
+            return modulePath, None
 
-def findFixtureFunctions(modulePath=None):
-    if hasattr(modulePath, '__iter__') and all(callable(i) for i in modulePath):
-        return modulePath[0], modulePath[1]
-    if callable(modulePath):
-        return modulePath, None
+        if modulePath == DEFAULT_FIXTURES_FILE and not os.path.exists(DEFAULT_FIXTURES_FILE):
+            # The default fixtures file could be missing, then just no fixtures will be used
+            modulePath = None
+        elif modulePath and not os.path.exists(modulePath):
+            # non-default fixtures files must exist, else raise an exception!
+            raise SelexeError('Cannot find selexe fixture module "%s"')
 
-    if modulePath == DEFAULT_FIXTURES_FILE and not os.path.exists(DEFAULT_FIXTURES_FILE):
-        # The default fixtures file could be missing, then just no fixtures will be used
-        modulePath = None
-    elif modulePath and not os.path.exists(modulePath):
-        # non-default fixtures files must exist, else raise an exception!
-        raise SelexeError('Cannot find selexe fixture module "%s"')
-
-    if modulePath:
-        path, moduleWithExt = os.path.split(os.path.realpath(modulePath))
-        module = os.path.splitext(moduleWithExt)[0]
-        if path and not path in sys.path:
-            sys.path.append(path)
-        mod = __import__(os.path.basename(module))
-        setUpFunc = getattr(mod, 'setUp', None)
-        tearDownFunc = getattr(mod, 'tearDown', None)
-        if setUpFunc or tearDownFunc:
-            logging.info('Using fixtures module %s (setUp: %s, tearDown: %s)' %
-                        (modulePath, setUpFunc is not None, tearDownFunc is not None))
+        if modulePath:
+            path, moduleWithExt = os.path.split(os.path.realpath(modulePath))
+            module = os.path.splitext(moduleWithExt)[0]
+            if path and not path in sys.path:
+                sys.path.append(path)
+            mod = __import__(os.path.basename(module))
+            setUpFunc = getattr(mod, 'setUp', None)
+            tearDownFunc = getattr(mod, 'tearDown', None)
+            if setUpFunc or tearDownFunc:
+                logging.info('Using fixtures module %s (setUp: %s, tearDown: %s)' %
+                            (modulePath, setUpFunc is not None, tearDownFunc is not None))
+            else:
+                logging.warning('Successfully imported fixtures module %s, but found no setUp or tearDown functions' %
+                                modulePath)
         else:
-            logging.warning('Successfully imported fixtures module %s, but found no setUp or tearDown functions' %
-                            modulePath)
-    else:
-        logging.info('Using no fixtures')
-        setUpFunc, tearDownFunc = None, None
-    return setUpFunc, tearDownFunc
+            logging.info('Using no fixtures')
+            setUpFunc, tearDownFunc = None, None
+        return setUpFunc, tearDownFunc
+
+findFixtureFunctions = SelexeRunner.findFixtureFunctions # backwards compatibility
 
 
 if __name__ == '__main__':

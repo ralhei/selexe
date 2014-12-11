@@ -5,7 +5,7 @@ from ..selexe_runner import SelexeRunner
 
 ALPHADIGIT = string.ascii_letters + string.digits
 
-def include_selexe_tests(suite_paths):
+def include_selexe_tests(suite_paths, cls = None):
     '''
     Include tests for all given paths into decorated class, suitable for using in conjunction with unittest frameworks.
 
@@ -26,6 +26,7 @@ def include_selexe_tests(suite_paths):
     ...     unittest.testmod()
 
     :param suite_paths: iterable of 2-d tuples with name and selenese file path.
+    :param cls: optional class, for direct invocation instead of twice call.
     :return: wrapper function
     '''
     def wrapped(cls):
@@ -45,4 +46,8 @@ def include_selexe_tests(suite_paths):
             test_suite.__doc__ = 'Selenium testsuite for %s' % name
             setattr(cls, test_suite.__name__, test_suite)
         return cls
+    if isinstance(suite_paths, type):
+        raise ValueError('include_selexe_tests decorator takes an iterable of (name, path) tuples, class given')
+    if cls:
+        return wrapped(cls)
     return wrapped
