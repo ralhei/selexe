@@ -1,8 +1,12 @@
 #!/usr/bin/env python
 
-import sys, os, logging, pdb, functools
-from timeit import Timer
-###
+import sys
+import os
+import logging
+import pdb
+import functools
+import timeit
+
 from selenium import webdriver
 from parse_sel import SeleniumParser
 from selenium_driver import SeleniumDriver
@@ -33,30 +37,25 @@ class SelexeRunner(object):
 
     def __init__(self, filename, baseuri=None, fixtures=None, pmd=False, timeit=False, driver='firefox', **options):
         self.filename = filename
-        self.baseuri = baseuri
+        self.baseuri = baseuri.rstrip('/') if baseuri else baseuri
         self.setUpFunc, self.tearDownFunc = self.findFixtureFunctions(fixtures)
         self.pmd = pmd
         self.timeit = timeit
         self.webdriver = driver
         self.options = options
-        
 
     def run(self):
         """Start execution of selenium tests (within setUp and tearDown wrappers)"""
         logging.info('Selexe working on file %s' % self.filename)
-        fp = open(self.filename)
-        seleniumParser = self.parser_class(fp)
-        driver = self.webdriver_classes[self.webdriver](**self.options)
-        baseURI = self.baseuri or seleniumParser.baseuri
-        if baseURI and baseURI.endswith('/'):
-            baseURI = baseURI[:-1]
-        logging.info('baseURI: %s' % baseURI)
-        try:
-            sd = self.driver_class(driver, baseURI)
-            return self._wrapExecution(seleniumParser, sd)
-        finally:
-            driver.quit()
-
+        with open(self.filename, 'r') as fp:
+            parser = self.parser_class(fp)
+            driver = self.webdriver_classes[self.webdriver](**self.options)
+            logging.info('baseURI: %s' % self.baseuri)
+            try:
+                sd = self.driver_class(driver, self.baseuri)
+                return self._wrapExecution(parser, sd)
+            finally:
+                driver.quit()
 
     def _wrapExecution(self, seleniumParser, sd):
         """Wrap execution of selenium tests in setUp and tearDown functions if available"""
@@ -68,10 +67,7 @@ class SelexeRunner(object):
             sd.initVerificationErrors()
 
         try:
-            if (self.timeit):
-                return self._executeSeleniumAndTimeIt(seleniumParser, sd)
-            else:
-                return self._executeSelenium(seleniumParser, sd)
+            return self._executeSelenium(seleniumParser, sd)
         except:
             if self.pmd:
                 exc = sys.exc_info()
@@ -84,24 +80,22 @@ class SelexeRunner(object):
                 self.tearDownFunc(sd)
                 logging.info("tearDown() finished")
 
+    def _execute_timeit(self, sd, command, target, value):
+        time = timeit.timeit(functools.partial(sd, command, target, value), number=1)
+        logging.info("Executed in %f sec" % (time))
+
+    def _execute_command(self, sd, command, target, value):
+        sd(command, target, value)
 
     def _executeSelenium(self, seleniumParser, sd):
         """Execute the actual selenium statements found in *sel file"""
-        for command, target, value in seleniumParser:
+        execute = self._execute_timeit if self.timeit else self._execute_command
+        for baseuri, command, target, value in seleniumParser:
+            if not self.baseuri and baseuri and baseuri != sd.base_url:
+                logging.info("BaseURI: %s" % baseuri)
+                sd.base_url = baseuri
             try:
-                sd(command, target, value)
-            except:
-                logging.error('Command %s(%r, %r) failed on \'%s\'.' % (command, target, value, sd.driver.current_url))
-                raise
-        return sd.getVerificationErrors()
-        
-        
-    def _executeSeleniumAndTimeIt(self, seleniumParser, sd):
-        """Execute the actual selenium statements found in *sel file and time each command"""
-        for command, target, value in seleniumParser:
-            try:
-                time = Timer(functools.partial(sd, command, target, value)).timeit(number=1)
-                logging.info("Executed in %f sec" % (time))
+                execute(sd, command, target, value)
             except:
                 logging.error('Command %s(%r, %r) failed on \'%s\'.' % (command, target, value, sd.driver.current_url))
                 raise

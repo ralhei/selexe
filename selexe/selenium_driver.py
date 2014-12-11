@@ -147,6 +147,7 @@ def create_store(func):
         # for e.g. 'storeText' the variable name will be given in 'value' (target holds the element identifier)
         # The the heuristic is to use 'value' preferably over 'target' if available. Hope this works ;-)
         variableName = value or target
+        logging.info('%s = %r' % (variableName, result))
         self.storedVariables[variableName] = result
     return wrap_func
 
@@ -664,8 +665,7 @@ class SeleniumDriver(object):
         """
         reset = ['document'] # ensure consistent behavior
         js = (
-            'var window = window,'
-            '    %s,'
+            'var %s,'
             '    storedVars = %s,'
             '    r = eval(\'%s\');'
             'return [\'\'+(r===undefined?null:r), storedVars];'
@@ -674,7 +674,6 @@ class SeleniumDriver(object):
             json.dumps(self.storedVariables),
             target.replace('\'', '\\\''),
         )
-        print js
         result, self.storedVariables = self.driver.execute_script(js)
         return value, result
     
