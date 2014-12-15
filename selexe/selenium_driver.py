@@ -787,7 +787,7 @@ class SeleniumDriver(object):
         # Older IDE Versions did not specify an "id" or "name" tag while recording (example 4).
         # We support these non-tag locators because the IDE still does. The ambiguity is easily handled in further
         # processing.
-        return ('css', '#%s, *[name=%s]' % (target, target))
+        return ('xpath', '//[@id=\'%s\' or @name=\'%s\']' % (target, target))
 
     def _find_target(self, target):
         """
@@ -809,11 +809,6 @@ class SeleniumDriver(object):
             # so we cannot use `find_element_by_partial_link_text` nor `find_element_by_link_text` methods
             # Bug report: https://code.google.com/p/selenium/issues/detail?id=6950
             return self.driver.find_element_by_xpath('//a[text()=\'%s\']' % ttarget)
-        elif ttype == None:
-            try:
-                return self.driver.find_element_by_id(ttarget)
-            except NoSuchElementException:
-                return self.driver.find_element_by_name(ttarget) 
         else:
             raise UnexpectedTagNameException('no way to find targets "%s"' % target)
 
