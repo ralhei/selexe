@@ -36,17 +36,17 @@ class Test_SeleniumDriver(object):
         assert self.sd('getText', 'css=h1') == 'H1 text'
         #
         self.sd('verifyText', 'css=h1', 'H1 text')
-        assert self.sd.getVerificationErrors() == []
+        assert self.sd.verification_errors == []
         #
         # check failing verifyText command:
         self.sd('verifyText', 'css=h1', 'H1 WROOOOOONG text')
-        assert self.sd.getVerificationErrors() == ['Actual value "H1 text" did not match "H1 WROOOOOONG text"']
-        self.sd.initVerificationErrors()  # reset verification messages
+        assert self.sd.verification_errors == ['Actual value "H1 text" did not match "H1 WROOOOOONG text"']
+        self.sd.clean_verification_errors()  # reset verification messages
         #
         # check failing verfiyNotText command:
         self.sd('verifyNotText', 'css=h1', 'H1 text')
-        assert self.sd.getVerificationErrors() == ['Actual value "H1 text" did match "H1 text"']
-        self.sd.initVerificationErrors()  # reset verification messages
+        assert self.sd.verification_errors == ['Actual value "H1 text" did match "H1 text"']
+        self.sd.clean_verification_errors()  # reset verification messages
         #
         self.sd('assertText', 'css=h1', 'H1 text')
         #
@@ -112,18 +112,18 @@ class Test_SeleniumDriver(object):
         # check that a wrong alert text adds a verification error
         self.sd('click', '//input[@value="alert button"]')
         self.sd('verifyAlert', 'a wrong text')
-        assert self.sd.getVerificationErrors() == ['Actual value "hello" did not match "a wrong text"']
-        self.sd.initVerificationErrors()  # reset verification messages
+        assert self.sd.verification_errors == ['Actual value "hello" did not match "a wrong text"']
+        self.sd.clean_verification_errors()  # reset verification messages
         #
         # check that a missing alert adds a verification error (added by verify wrapper)     
         self.sd('verifyAlert', 'hello')
-        assert self.sd.getVerificationErrors() == ['There were no alerts or confirmations']
-        self.sd.initVerificationErrors()  # reset verification messages
+        assert self.sd.verification_errors == ['There were no alerts or confirmations']
+        self.sd.clean_verification_errors()  # reset verification messages
         #
         # check that a missing alert adds a verification error (added by verifyNot wrapper)   
         self.sd('verifyNotAlert', 'hello')
-        assert self.sd.getVerificationErrors() == ['There were no alerts or confirmations']
-        self.sd.initVerificationErrors()  # reset verification messages
+        assert self.sd.verification_errors == ['There were no alerts or confirmations']
+        self.sd.clean_verification_errors()  # reset verification messages
         #
         # Check that the message of the alert window gets stored
         self.sd('click', '//input[@value="alert button"]')
@@ -144,8 +144,8 @@ class Test_SeleniumDriver(object):
         #
         # check failing for incorrect number of xpathes
         self.sd('verifyXpathCount', '//option', "3")
-        assert self.sd.getVerificationErrors() == ['Actual value "4" did not match "3"']
-        self.sd.initVerificationErrors()  # reset verification messages
+        assert self.sd.verification_errors == ['Actual value "4" did not match "3"']
+        self.sd.clean_verification_errors()  # reset verification messages
         
     
     def test_Select_method(self):
@@ -298,17 +298,17 @@ class Test_SeleniumDriver(object):
         #
         # check that an element can be found
         self.sd('verifyElementPresent', '//div[@class="class1"]')
-        assert self.sd.getVerificationErrors() == []
+        assert self.sd.verification_errors == []
         #
         # check that a missing element adds a verification error
         self.sd('verifyElementPresent', '//div[@class="class"]')
-        assert self.sd.getVerificationErrors() == ['false']
-        self.sd.initVerificationErrors()  # reset verification messages
+        assert self.sd.verification_errors == ['false']
+        self.sd.clean_verification_errors()  # reset verification messages
         #
         # check that an element which should not be present adds a verification error
         self.sd('verifyNotElementPresent', '//div[@class="class1"]')
-        assert self.sd.getVerificationErrors() == ['true']
-        self.sd.initVerificationErrors()  # reset verification messages              
+        assert self.sd.verification_errors == ['true']
+        self.sd.clean_verification_errors()  # reset verification messages              
         #
         # check that a missing element raises an assertion error and not a NoSuchElementException (it is caught in the method)
         with py.test.raises(AssertionError):
@@ -435,16 +435,16 @@ class Test_SeleniumDriver(object):
         #
         # check that a wrong value adds a verification error
         self.sd('verifyValue', 'id=id_text1', '')
-        assert self.sd.getVerificationErrors() == ['Actual value "input_text1" did not match ""']
-        self.sd.initVerificationErrors()  # reset verification messages  
+        assert self.sd.verification_errors == ['Actual value "input_text1" did not match ""']
+        self.sd.clean_verification_errors()  # reset verification messages  
         #
         # check that the value of the 'type' attribute can be found and is correct
         self.sd('assertAttribute', 'id=id_submit@type', 'submit')
         #
         # check that a wrong value adds a verification error
         self.sd('verifyAttribute', 'id=id_submit@type', 'submits')
-        assert self.sd.getVerificationErrors() == ['Actual value "submit" did not match "submits"']
-        self.sd.initVerificationErrors()  # reset verification messages  
+        assert self.sd.verification_errors == ['Actual value "submit" did not match "submits"']
+        self.sd.clean_verification_errors()  # reset verification messages  
     
     
     def test_Type_method(self):

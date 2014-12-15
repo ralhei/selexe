@@ -6,11 +6,15 @@ import logging
 import pdb
 import functools
 import timeit
+import io
 
 from selenium import webdriver
 from parse_sel import SeleniumParser
 from selenium_driver import SeleniumDriver
 from cmdargs import DEFAULT_FIXTURES_FILE
+
+
+logger = logging.getLogger(__name__)
 
 
 class SelexeError(Exception):
@@ -34,8 +38,9 @@ class SelexeRunner(object):
         'android': webdriver.Android,
         'remote': webdriver.Remote,
     }
+    webdriver_timeout_support = ('firefox', 'ie')
 
-    def __init__(self, filename, baseuri=None, fixtures=None, pmd=False, timeit=False, driver='firefox', **options):
+    def __init__(self, filename, baseuri=None, fixtures=None, pmd=False, timeit=False, driver='firefox', encoding='utf-8', timeout=10000, **options):
         self.filename = filename
         self.baseuri = baseuri.rstrip('/') if baseuri else baseuri
         self.setUpFunc, self.tearDownFunc = self.findFixtureFunctions(fixtures)
@@ -43,28 +48,32 @@ class SelexeRunner(object):
         self.timeit = timeit
         self.webdriver = driver
         self.options = options
+        self.timeout = timeout
+        self.encoding = encoding
 
     def run(self):
         """Start execution of selenium tests (within setUp and tearDown wrappers)"""
-        logging.info('Selexe working on file %s' % self.filename)
-        with open(self.filename, 'r') as fp:
-            parser = self.parser_class(fp)
-            driver = self.webdriver_classes[self.webdriver](**self.options)
-            logging.info('baseURI: %s' % self.baseuri)
-            try:
-                sd = self.driver_class(driver, self.baseuri)
-                return self._wrapExecution(parser, sd)
-            finally:
-                driver.quit()
+        logger.info('Selexe working on file %s' % self.filename)
+        options = dict(self.options)
+        if self.webdriver in self.webdriver_timeout_support:
+            options['timeout'] = self.timeout + 10
+        parser = self.parser_class.from_path(self.filename, encoding=self.encoding)
+        driver = self.webdriver_classes[self.webdriver](**options)
+        logger.info('baseURI: %s' % self.baseuri)
+        try:
+            sd = self.driver_class(driver, self.baseuri, self.timeout)
+            return self._wrapExecution(parser, sd)
+        finally:
+            driver.quit()
 
     def _wrapExecution(self, seleniumParser, sd):
         """Wrap execution of selenium tests in setUp and tearDown functions if available"""
         if self.setUpFunc:
-            logging.info("Calling setUp()")
+            logger.info("Calling setUp()")
             self.setUpFunc(sd)
-            logging.info("setUp() finished")
+            logger.info("setUp() finished")
             # remove all verification errors possibly generated during setUpFunc()
-            sd.initVerificationErrors()
+            sd.clean_verification_errors()
 
         try:
             return self._executeSelenium(seleniumParser, sd)
@@ -78,11 +87,11 @@ class SelexeRunner(object):
             if self.tearDownFunc:
                 logging.info("Calling tearDown()")
                 self.tearDownFunc(sd)
-                logging.info("tearDown() finished")
+                logger.info("tearDown() finished")
 
     def _execute_timeit(self, sd, command, target, value):
         time = timeit.timeit(functools.partial(sd, command, target, value), number=1)
-        logging.info("Executed in %f sec" % (time))
+        logger.info("Executed in %f sec" % (time))
 
     def _execute_command(self, sd, command, target, value):
         sd(command, target, value)
@@ -92,14 +101,14 @@ class SelexeRunner(object):
         execute = self._execute_timeit if self.timeit else self._execute_command
         for baseuri, command, target, value in seleniumParser:
             if not self.baseuri and baseuri and baseuri != sd.base_url:
-                logging.info("BaseURI: %s" % baseuri)
+                logger.info("BaseURI: %s" % baseuri)
                 sd.base_url = baseuri
             try:
                 execute(sd, command, target, value)
             except:
-                logging.error('Command %s(%r, %r) failed on \'%s\'.' % (command, target, value, sd.driver.current_url))
+                logger.error('Command %s(%r, %r) failed on \'%s\'.' % (command, target, value, sd.driver.current_url))
                 raise
-        return sd.getVerificationErrors()
+        return sd.verification_errors
         
     @staticmethod
     def findFixtureFunctions(modulePath=None):
@@ -124,13 +133,13 @@ class SelexeRunner(object):
             setUpFunc = getattr(mod, 'setUp', None)
             tearDownFunc = getattr(mod, 'tearDown', None)
             if setUpFunc or tearDownFunc:
-                logging.info('Using fixtures module %s (setUp: %s, tearDown: %s)' %
+                logger.info('Using fixtures module %s (setUp: %s, tearDown: %s)' %
                             (modulePath, setUpFunc is not None, tearDownFunc is not None))
             else:
-                logging.warning('Successfully imported fixtures module %s, but found no setUp or tearDown functions' %
+                logger.warning('Successfully imported fixtures module %s, but found no setUp or tearDown functions' %
                                 modulePath)
         else:
-            logging.info('Using no fixtures')
+            logger.info('Using no fixtures')
             setUpFunc, tearDownFunc = None, None
         return setUpFunc, tearDownFunc
 
