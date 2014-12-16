@@ -10,13 +10,10 @@ import BeautifulSoup as beautifulsoup
 ###
 from six.moves import xrange
 
-from selenium.common.exceptions import NoSuchWindowException
-from selenium.common.exceptions import NoSuchElementException
-from selenium.common.exceptions import NoAlertPresentException
-from selenium.common.exceptions import NoSuchAttributeException
-from selenium.common.exceptions import UnexpectedTagNameException
-from selenium.common.exceptions import NoSuchFrameException
-from selenium.common.exceptions import WebDriverException
+from selenium.common.exceptions import NoSuchWindowException, NoSuchElementException, NoAlertPresentException,\
+                                       NoSuchAttributeException, UnexpectedTagNameException, NoSuchFrameException, \
+                                       WebDriverException
+from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.alert import Alert
@@ -204,6 +201,12 @@ class SeleniumDriver(object):
     _poll = 1
     _num_repeats = 1
     _verification_errors = ()
+    _by_target_locators = {
+        'css': By.CSS_SELECTOR,
+        'id': By.ID,
+        'name': By.NAME,
+        'xpath': By.XPATH,
+    }
 
     @property
     def timeout(self):
@@ -246,7 +249,13 @@ class SeleniumDriver(object):
         return list(self._verification_errors)
 
 
-    def __init__(self, driver, base_url, timeout=10000, poll=0.1):
+    def __init__(self, driver, base_url=None, timeout=10000, poll=0.1):
+        """
+        :param driver: selenium.WebDriver instance
+        :param base_url: base url or None
+        :param timeout: timeout
+        :param poll: polling interval for wait
+        """
         self.driver = driver
         self.base_url = base_url or ''
         self._verification_errors = []
@@ -264,6 +273,13 @@ class SeleniumDriver(object):
         Clean verification errors
         """
         del self.verification_errors[:]
+
+    def save_screenshot(self, path):
+        """
+        Save screenshot to given path
+        :param path:
+        """
+        self.driver.save_screenshot(path)
 
     def __call__(self, command, target, value=None, **kw):
         """
@@ -302,7 +318,7 @@ class SeleniumDriver(object):
         Save current document id for detecting later page changes by methods should wait for them.
         """
         try:
-            self.waitForPageId = self._find_target('css=html')._id
+            self.waitForPageId = self._find_target('xpath=/html')._id
         except:
             pass
 
@@ -315,7 +331,7 @@ class SeleniumDriver(object):
         logger.info('... waiting for pageload')
         for i in self.retries:
             try:
-                newPageId = self._find_target('css=html')._id
+                newPageId = self._find_target('xpath=/html')._id
                 if self.waitForPageId != newPageId:
                     self.waitForPageId = None
                     break
@@ -372,7 +388,7 @@ class SeleniumDriver(object):
         @param value:  <not used>
         """
         self._expect_page_change()
-        self._find_target(target).click()
+        self._find_target(target, click=True).click()
         
     @seleniumcommand
     def click(self, target, value=None):
@@ -383,7 +399,7 @@ class SeleniumDriver(object):
         """
         for i in self.retries:
             try:
-                self._find_target(target).click()
+                self._find_target(target, click=True).click()
                 break
             except NoSuchElementException:
                 continue
@@ -406,13 +422,13 @@ class SeleniumDriver(object):
             example: "index=2"
         """
         target_elem = self._find_target(target)
-        tag, tvalue = self._tag_and_value(value)
+        tag, tvalue = self._tag_and_value(value, extra_locators=('id', 'label', 'value', 'index'))
         select = Select(target_elem)
         # the select command in the IDE does not execute javascript. So skip this command if javascript is executed
         # and wait for the following click command to execute the click event which will lead you to the next page
         if not target_elem.find_elements_by_css_selector('option[onclick]'):
             #import pdb; pdb.set_trace()
-            if tag in ['label', None]:
+            if tag in ('label', None):
                 tvalue = self._matchOptionText(target_elem, tvalue)
                 select.select_by_visible_text(tvalue)
             elif tag == 'value':
@@ -520,7 +536,7 @@ class SeleniumDriver(object):
             try:
                 self._selectWindow(locator)
                 self.driver.switch_to_window(0)
-                self._find_target('css=html')._id
+                self._find_target('xpath=/html')._id
                 break
             except (NoSuchWindowException, WebDriverException):
                 pass
@@ -541,18 +557,22 @@ class SeleniumDriver(object):
     
     
     def _selectWindow(self, target):
-        ttype, ttarget = self._tag_and_value(target)
-        if ttarget in ('null', '', None):
+        current = ('null', '', None)
+        blank = ('_blank',)
+        ttype, ttarget = self._tag_and_value(target, extra_locators=('name', 'title'))
+        if target in current or ttarget in current:
             self.driver.switch_to_window(0)
-        elif ttarget == '_blank':
+        elif target in blank or ttarget in blank:
             self.driver.switch_to_window(self.driver.window_handles[1])
         elif ttype == 'name':
             self.driver.switch_to_window(ttarget)
         elif ttype == 'title':
             for window in self.driver.window_handles:
                 self.driver.switch_to_window(window)
-                if self.driver.find_element_by_xpath("//title").text == ttarget:
+                if self.driver.find_element_by_xpath("/html/head/title").text == ttarget:
                     break
+            else:
+                raise NoSuchElementException('Unable to select window with title %s' % ttarget)
         else:
             raise NotImplementedError('No way to find the window: use "name" or "title" locators of specify target as "null"')
         
@@ -757,7 +777,7 @@ class SeleniumDriver(object):
     ################# Some helper Functions ##################
 
     @classmethod
-    def _tag_and_value(cls, target):
+    def _tag_and_value(cls, target, extra_locators=()):
         """
         Get the tag of an element locator to identify its type.
         @param target: an element locator
@@ -781,36 +801,42 @@ class SeleniumDriver(object):
             # This separate handling saves this locator variant from a split operation which may cut it in two
             # worthless pieces (example 3).
             return ('xpath', target)
-        elif '=' in  target:
-            # Perform a split for all other locator types to get the tag. If there is no tag, specify it as None.
-            return target.split('=', 1) # Unknown tags raise an UnexpectedTagNameException in further processing
-        # Older IDE Versions did not specify an "id" or "name" tag while recording (example 4).
-        # We support these non-tag locators because the IDE still does. The ambiguity is easily handled in further
-        # processing.
-        return ('xpath', '//[@id=\'%s\' or @name=\'%s\']' % (target, target))
+        elif target.startswith('link='):
+            # `find_element_by_link_text` exposes a different behavior than Selenium IDE applying css
+            # transformations so we cannot use `find_element_by_partial_link_text` nor `find_element_by_link_text`
+            # methods. Bug report: https://code.google.com/p/selenium/issues/detail?id=6950
+            return ('xpath', '//a[text()=\'%s\']' % target[5:])
+        elif not '=' in  target:
+            # Older IDE Versions did not specify an "id" or "name" tag while recording (example 4).
+            # We support these non-tag locators because the IDE still does. The ambiguity is easily handled in further
+            # processing.
+            return ('xpath', '//[@id=\'%s\' or @name=\'%s\']' % (target, target))
+        # Perform a split for all other locator types to get the tag. If there is no tag, specify it as None.
+        tt, target =  target.split('=', 1) # Unknown tags raise an UnexpectedTagNameException in further processing
+        # Use selenium locator if locator is not defined as custom
+        try:
+            if not tt in extra_locators:
+                tt = cls._by_target_locators[tt]
+        except KeyError:
+            raise UnexpectedTagNameException('invalid locator format "%s"' % target)
+        return tt, target
 
-    def _find_target(self, target):
+
+    def _find_target(self, target, click=False):
         """
         Select and execute the appropriate find_element_* method for an element locator.
         @param target: an element locator
         @return: the webelement instance found by a find_element_* method
         """
-        ttype, ttarget = self._tag_and_value(target)
-        if ttype == 'css':
-            return self.driver.find_element_by_css_selector(ttarget)
-        elif ttype == 'xpath':
-            return self.driver.find_element_by_xpath(ttarget)
-        elif ttype == 'id':
-            return self.driver.find_element_by_id(ttarget)
-        elif ttype == 'name':
-            return self.driver.find_element_by_name(ttarget)
-        elif ttype == 'link':
-            # `find_element_by_link_text` exposes a different behavior than Selenium IDE applying css transformations
-            # so we cannot use `find_element_by_partial_link_text` nor `find_element_by_link_text` methods
-            # Bug report: https://code.google.com/p/selenium/issues/detail?id=6950
-            return self.driver.find_element_by_xpath('//a[text()=\'%s\']' % ttarget)
-        else:
-            raise UnexpectedTagNameException('no way to find targets "%s"' % target)
+        locator = self._tag_and_value(target)
+        if not click:
+            return self.driver.find_element(*locator)
+        # Selenium IDE filters for clickable items on click commands, so ambiguous locators which matches both
+        # clickable and unclickable items should not fail.
+        for element in self.driver.find_elements(*locator):
+            if element.is_displayed() and element.is_enabled():
+                return element
+        raise NoSuchElementException('Element with %r not found.' % target)
 
     @classmethod
     def _matches(cls, expectedResult, result):

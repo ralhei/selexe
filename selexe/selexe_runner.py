@@ -2,11 +2,12 @@
 
 import sys
 import os
+import os.path
 import logging
 import pdb
 import functools
+import time
 import timeit
-import io
 
 from selenium import webdriver
 from parse_sel import SeleniumParser
@@ -40,7 +41,21 @@ class SelexeRunner(object):
     }
     webdriver_timeout_support = ('firefox', 'ie')
 
-    def __init__(self, filename, baseuri=None, fixtures=None, pmd=False, timeit=False, driver='firefox', encoding='utf-8', timeout=10000, **options):
+    def __init__(self, filename, baseuri=None, fixtures=None, pmd=False, timeit=False, driver='firefox',
+                 window_size=None, encoding='utf-8', timeout=10000, error_screenshot_dir=None, **options):
+        """
+        @param filename: Selenium IDE file
+        @param baseuri: base url for selenium tests
+        @param fixtures:
+        @param pmd: launches pdb on fail if True, defaults to False
+        @param timeit: logs time taken by every command on logging level INFO if True, defaults to False
+        @param driver: selenium driver as string, defaults to 'firefox'
+        @param window_size: desired window size as (width, height) tuple, defaults to None
+        @param encoding: encoding will be used by Selenium IDE test parser
+        @param timeout: maximum milliseconds will be waited for every command before failing, defaults to 10000 (10s)
+        @param error_screenshot_dir: directory will be used to store screenshots when test fails
+        @param **options: extra keyword arguments will be forwarded directly to selenium driver
+        """
         self.filename = filename
         self.baseuri = baseuri.rstrip('/') if baseuri else baseuri
         self.setUpFunc, self.tearDownFunc = self.findFixtureFunctions(fixtures)
@@ -50,6 +65,8 @@ class SelexeRunner(object):
         self.options = options
         self.timeout = timeout
         self.encoding = encoding
+        self.error_screenshot_dir = error_screenshot_dir
+        self.window_size = window_size
 
     def run(self):
         """Start execution of selenium tests (within setUp and tearDown wrappers)"""
@@ -59,6 +76,9 @@ class SelexeRunner(object):
             options['timeout'] = self.timeout + 10
         parser = self.parser_class.from_path(self.filename, encoding=self.encoding)
         driver = self.webdriver_classes[self.webdriver](**options)
+        if self.window_size:
+            width, height = self.window_size
+            driver.set_window_size(width, height)
         logger.info('baseURI: %s' % self.baseuri)
         try:
             sd = self.driver_class(driver, self.baseuri, self.timeout)
@@ -78,6 +98,10 @@ class SelexeRunner(object):
         try:
             return self._executeSelenium(seleniumParser, sd)
         except:
+            if self.error_screenshot_dir:
+                path = os.path.join(self.error_screenshot_dir, time.strftime('%Y%m%d.%H%M%S.png'))
+                sd.save_screenshot(path)
+                logger.error('Screenshot saved to %s' % path)
             if self.pmd:
                 exc = sys.exc_info()
                 pdb.post_mortem(exc[2])
