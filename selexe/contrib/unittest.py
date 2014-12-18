@@ -25,9 +25,9 @@ def include_selexe_tests(suite_paths, cls = None):
     >>> if __name__ == '__main__':
     ...     unittest.testmod()
 
-    :param suite_paths: iterable of 2-d tuples with name and selenese file path.
-    :param cls: optional class, for direct invocation instead of twice call.
-    :return: wrapper function
+    @param suite_paths: iterable of 2-d tuples with name and selenese file path.
+    @param cls: optional class, for direct invocation instead of twice call.
+    @return wrapper function
     '''
     def wrapped(cls):
         '''
@@ -36,8 +36,8 @@ def include_selexe_tests(suite_paths, cls = None):
         This function uses arguments given to 'include_selexe_tests' for adding 'test_'-prefixed methods to
         class.
 
-        :param cls: class to decorate
-        :return: given class
+        @param cls: class to decorate
+        @return given class
         '''
         for name, path in suite_paths:
             def test_suite(self):

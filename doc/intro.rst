@@ -23,11 +23,7 @@ as on Mac OS X.
 It has been tested run with Python 2.6.x and 2.7.x. Python 3.x should also be supported.
 
 
-License
--------
 
-selexe has been written by `Ralph Heinkel (www.ralph-heinkel.com) <http://www.ralph-heinkel.com/>`_ and is
-released under `MIT license <http://packages.python.org/selexe/license.html>`_.
 
 
 Quick Installation

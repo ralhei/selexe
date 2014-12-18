@@ -5,6 +5,7 @@ import types
 import new
 import json
 import six
+import functools
 import BeautifulSoup as beautifulsoup
 
 ###
@@ -262,6 +263,7 @@ class SeleniumDriver(object):
         self._importUserFunctions() # FIXME
         self.timeout = timeout
         self.poll = poll
+        self.custom_locators = {}
         # 'storedVariables' is used through the 'create_store' decorator above to store values during a selenium run:
         self.storedVariables = {}
         # Sometimes it is necessary to confirm that a page has actually loaded. We use this variable for it.
@@ -507,7 +509,8 @@ class SeleniumDriver(object):
             actions = ActionChains(self.driver)
             actions.move_to_element(target_elem)
             actions.move_by_offset(target_elem.size["width"] / 2 + 1, 0)
-            actions.click().perform()
+            actions.click()
+            actions.perform()
         
   
     @seleniumcommand
@@ -520,7 +523,8 @@ class SeleniumDriver(object):
         target_elem = self._find_target(target)
         actions = ActionChains(self.driver)
         actions.move_to_element(target_elem)
-        actions.move_by_offset(target_elem.size["width"] / 2 + 1, 0).perform()
+        actions.move_by_offset(target_elem.size["width"] / 2 + 1, 0)
+        actions.perform()
         
 
     @seleniumcommand
@@ -605,10 +609,111 @@ class SeleniumDriver(object):
             except (ValueError, TypeError):
                 frame = self._find_target(target)
             self.driver.switch_to_frame(frame)
+
+    @seleniumcommand
+    def addLocationStrategy(self, target, value=None):
+        self.custom_locators[target] = value
+
+    @seleniumcommand
+    def addLocationStrategyAndWait(self, target, value=None):
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def addScript(self, target, value=None):
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def addScriptAndWait(self, target, value=None):
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def addSelection(self, target, value=None):
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def addSelectionAndWait(self, target, value=None):
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def allowNativeXpath(self, target, value=None):
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def allowNativeXpathAndWait(self, target, value=None):
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def answerOnNextPrompt(self, target, value=None):
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def windowFocus(self, target, value=None):
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def windowMaximize(self, target, value=None):
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def windowMaximizeAndWait(self, target, value=None):
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def altKeyDown(self, target, value=None):
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def altKeyDownAndWait(self, target, value=None):
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def shiftKeyDown(self, target, value=None):
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def shiftKeyDownAndWait(self, target, value=None):
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def controlKeyDown(self, target, value=None):
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def controlKeyDownAndWait(self, target, value=None):
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def keyDown(self, target, value=None):
+        target_elm = self._find_target(target)
+        actions = ActionChains(self.driver)
+        actions.key_down(target_elm, value)
+        actions.perform()
+
+    @seleniumcommand
+    def keyDownAndWait(self, target, value=None):
+        target_elm = self._find_target(target)
+        actions = ActionChains(self.driver)
+        actions.key_down(target_elm, value)
+        actions.perform()
+
+    @seleniumcommand
+    def keyUp(self, target, value=None):
+        target_elm = self._find_target(target)
+        actions = ActionChains(self.driver)
+        actions.key_up(target_elm, value)
+        actions.perform()
+
+    @seleniumcommand
+    def keyUpAndWait(self, target, value=None):
+        target_elm = self._find_target(target)
+        actions = ActionChains(self.driver)
+        actions.key_up(target_elm, value)
+        actions.perform()
+
     ###
     # Section 2: All wd_SEL*-statements (from which all other methods are created dynamically via decorators)
     ###
-     
+
     def wd_SEL_TextPresent(self, target, value=None):
         """
         Verify that the specified text pattern appears somewhere on the page shown to the user.
@@ -777,7 +882,7 @@ class SeleniumDriver(object):
     ################# Some helper Functions ##################
 
     @classmethod
-    def _tag_and_value(cls, target, extra_locators=()):
+    def _tag_and_value(cls, target, extra_locators=(), dom_locator_functions={}):
         """
         Get the tag of an element locator to identify its type.
         @param target: an element locator
@@ -796,31 +901,56 @@ class SeleniumDriver(object):
         >>> SeleniumDriver._tag_and_value('id=f_transfectionprotocol')
         ('id', 'f_transfectionprotocol')
         """
-        if target.startswith('/'):
-            # Identify an xpath locator missing a tag by looking at the leading tokens.
-            # This separate handling saves this locator variant from a split operation which may cut it in two
-            # worthless pieces (example 3).
-            return ('xpath', target)
-        elif target.startswith('link='):
-            # `find_element_by_link_text` exposes a different behavior than Selenium IDE applying css
-            # transformations so we cannot use `find_element_by_partial_link_text` nor `find_element_by_link_text`
-            # methods. Bug report: https://code.google.com/p/selenium/issues/detail?id=6950
-            return ('xpath', '//a[text()=\'%s\']' % target[5:])
-        elif not '=' in  target:
-            # Older IDE Versions did not specify an "id" or "name" tag while recording (example 4).
-            # We support these non-tag locators because the IDE still does. The ambiguity is easily handled in further
-            # processing.
+        if '=' in target:
+            # Perform a split for all other locator types to get the tag. If there is no tag, specify it as None.
+            tt, target =  target.split('=', 1) # Unknown tags raise an UnexpectedTagNameException in further processing
+        elif target.startswith('//'):
+            # NOTE: '/html' is valid as xpath, but this condition was defined by selenium core guys
+            tt = 'xpath'
+        elif target.startswith('document.'):
+            # NOTE: 'document' is a valid as element, but this condition was defined by selenium core guys
+            tt = 'dom'
+        else:
+            # selenium core defaults to identifier (either id or name), handled later
+            tt = 'identifier'
+
+        # Return locator is defined as custom
+        if tt in extra_locators:
+            return tt, target
+
+        # Use selenium locators
+        if tt == 'identifier':
+            # translated to xpath
             return ('xpath', '//[@id=\'%s\' or @name=\'%s\']' % (target, target))
-        # Perform a split for all other locator types to get the tag. If there is no tag, specify it as None.
-        tt, target =  target.split('=', 1) # Unknown tags raise an UnexpectedTagNameException in further processing
-        # Use selenium locator if locator is not defined as custom
-        try:
-            if not tt in extra_locators:
-                tt = cls._by_target_locators[tt]
-        except KeyError:
+        elif tt == 'id':
+            # native (using By)
+            pass
+        elif tt == 'name':
+            # native (using By)
+            pass
+        elif tt == 'dom':
+            # handled by _find_target
+            pass
+        elif tt == 'xpath':
+            # native (using By)
+            pass
+        elif tt == 'link':
+            # translated to xpath (native By.LINK_TEXT behavior differs from Selenium IDE)
+            # see bug https://code.google.com/p/selenium/issues/detail?id=6950
+            return ('xpath', '//a[text()=\'%s\']' % target)
+        elif tt == 'css':
+            # native (using By)
+            pass
+        elif tt == 'ui':
+            raise NotImplementedError('ui locators are not implemented yet') # TODO: implement
+        elif tt in dom_locator_functions:
+            # translated to dom, handled by _find_target, custom locators are function bodies
+            template = '(function(locator, inWindow, inDocument){%s}(\'%s\', window, window.document));'
+            body = dom_locator_functions[tt]
+            return ('dom', template % (body, target))
+        else:
             raise UnexpectedTagNameException('invalid locator format "%s"' % target)
         return tt, target
-
 
     def _find_target(self, target, click=False):
         """
@@ -828,15 +958,25 @@ class SeleniumDriver(object):
         @param target: an element locator
         @return: the webelement instance found by a find_element_* method
         """
-        locator = self._tag_and_value(target)
-        if not click:
-            return self.driver.find_element(*locator)
-        # Selenium IDE filters for clickable items on click commands, so ambiguous locators which matches both
-        # clickable and unclickable items should not fail.
-        for element in self.driver.find_elements(*locator):
-            if element.is_displayed() and element.is_enabled():
-                return element
-        raise NoSuchElementException('Element with %r not found.' % target)
+        tt, target = self._tag_and_value(target, dom_locator_functions=self.custom_locators)
+
+        if tt == 'dom':
+            js = target.replace('\'', '\\\'')
+            find_one = functools.partial(self.driver.execute_script, 'return eval(\'%s\')' % js)
+            find_many = find_one
+        else:
+            by = self._by_target_locators[tt]
+            find_one = functools.partial(self.driver.find_element, by, target)
+            find_many = functools.partial(self.driver.find_elements, by, target)
+
+        if click:
+            # Selenium IDE filters for clickable items on click commands, so ambiguous locators which matches both
+            # clickable and unclickable items should not fail.
+            for element in find_many():
+                if element.is_displayed() and element.is_enabled():
+                    return element
+            raise NoSuchElementException('Element with %r not found.' % target)
+        return find_one()
 
     @classmethod
     def _matches(cls, expectedResult, result):

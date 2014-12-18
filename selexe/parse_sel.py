@@ -124,9 +124,3 @@ class SeleniumParser(SeleniumTestCaseParser):
 
 htmlentitydecode = SeleniumTestCaseParser.htmlentity_translate # compatibility
 handleTags = SeleniumTestCaseParser.handle_tags # compatibility
-
-
-if __name__ == '__main__':
-    import sys
-    p = SeleniumParser.from_path(sys.argv[1])
-    print(list(p))

@@ -3,8 +3,6 @@
 import os
 from setuptools import setup
 
-# NOTE: Other files to be included are specified in MANIFEST.in
-
 ## Get long_description from intro.txt:
 here = os.path.dirname(os.path.abspath(__file__))
 f = open(os.path.join(here, 'doc', 'intro.rst'))
@@ -24,17 +22,19 @@ setup(name='selexe',
       url='http://pypi.python.org/pypi/selexe/',
       packages=['selexe', 'selexe.contrib'],
       install_requires=['selenium', 'BeautifulSoup', 'six'],
+      entry_points = { 'console_scripts': ['selexe=selexe.__main__:main'],
+                       },
       license='MIT license',
       platforms=['unix', 'linux', 'cygwin', 'win32'],
       zip_save=False,
-      classifiers=[  'Development Status :: 2 - Pre-Alpha',
-                     'Environment :: Console',
-                     'License :: OSI Approved :: MIT License',
-                     'Operating System :: POSIX',
-                     'Operating System :: Microsoft :: Windows',
-                     'Operating System :: MacOS :: MacOS X',
-                     'Programming Language :: Python',
-                     'Intended Audience :: Developers',
-                     'Topic :: Software Development :: Testing',
-                     ],
+      classifiers=[ 'Development Status :: 3 - Alpha',
+                    'Environment :: Console',
+                    'License :: OSI Approved :: MIT License',
+                    'Operating System :: POSIX',
+                    'Operating System :: Microsoft :: Windows',
+                    'Operating System :: MacOS :: MacOS X',
+                    'Programming Language :: Python',
+                    'Intended Audience :: Developers',
+                    'Topic :: Software Development :: Testing',
+                    ],
      )

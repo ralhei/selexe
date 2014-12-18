@@ -4,7 +4,6 @@ import sys
 import os
 import os.path
 import logging
-import pdb
 import functools
 import time
 import timeit
@@ -12,8 +11,6 @@ import timeit
 from selenium import webdriver
 from parse_sel import SeleniumParser
 from selenium_driver import SeleniumDriver
-from cmdargs import DEFAULT_FIXTURES_FILE
-
 
 logger = logging.getLogger(__name__)
 
@@ -97,14 +94,17 @@ class SelexeRunner(object):
 
         try:
             return self._executeSelenium(seleniumParser, sd)
-        except:
+        except BaseException as e:
             if self.error_screenshot_dir:
                 path = os.path.join(self.error_screenshot_dir, time.strftime('%Y%m%d.%H%M%S.png'))
                 sd.save_screenshot(path)
                 logger.error('Screenshot saved to %s' % path)
             if self.pmd:
-                exc = sys.exc_info()
-                pdb.post_mortem(exc[2])
+                try:
+                    import ipdb as pdb
+                except ImportError:
+                    import pdb
+                pdb.post_mortem(e)
             else:
                 raise
         finally:
@@ -141,13 +141,6 @@ class SelexeRunner(object):
         if callable(modulePath):
             return modulePath, None
 
-        if modulePath == DEFAULT_FIXTURES_FILE and not os.path.exists(DEFAULT_FIXTURES_FILE):
-            # The default fixtures file could be missing, then just no fixtures will be used
-            modulePath = None
-        elif modulePath and not os.path.exists(modulePath):
-            # non-default fixtures files must exist, else raise an exception!
-            raise SelexeError('Cannot find selexe fixture module "%s"')
-
         if modulePath:
             path, moduleWithExt = os.path.split(os.path.realpath(modulePath))
             module = os.path.splitext(moduleWithExt)[0]
@@ -168,15 +161,3 @@ class SelexeRunner(object):
         return setUpFunc, tearDownFunc
 
 findFixtureFunctions = SelexeRunner.findFixtureFunctions # backwards compatibility
-
-
-if __name__ == '__main__':
-    from cmdargs import parse_cmd_args
-    (options, args) = parse_cmd_args()
-    logging.basicConfig(level=options.logging)
-    for selFilename in args:
-        s = SelexeRunner(selFilename, baseuri=options.baseuri, pmd=options.pmd, fixtures=options.fixtures, timeit=options.timeit, driver=options.driver)
-        res = s.run()
-        if res:
-            sys.stderr.write("\nVerification errors in %s: %s\n" % (selFilename, res))
-    sys.exit(1)
