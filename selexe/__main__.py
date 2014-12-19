@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 class TTYColorFormat(UserString):
     fmt = '[ %(color)s%(level)s%(reset)s ] %%(message)s'
-    fmt_defaults = {'color': '', 'level': '', 'reset': ''}
+    data = fmt % {'color': '', 'level': '%s(levelname)s', 'reset': ''}
     colors = {
         'ERROR': '\x1b[31m',
         'WARNING': '\x1b[31m',
@@ -29,21 +29,20 @@ class TTYColorFormat(UserString):
         SUCCESS: 'SUCCESS'
     }
     def __init__(self):
-        super(TTYColorFormat, self).__init__(self.fmt % self.fmt_defaults)
         plat = sys.platform
         supported_platform = plat != 'Pocket PC' and (plat != 'win32' or 'ANSICON' in os.environ)
         is_a_tty = hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()
         self.supported = supported_platform and is_a_tty
 
     def __mod__(self, data):
-        if not self.supported:
-            return self.data % data
         levelname = self.custom_levels.get(data['levelno'], data['levelname'])
-        fmt = self.fmt % {
-            'color': self.colors.get(levelname, self.colors['NOTSET']),
-            'level': levelname,
-            'reset': self.colors['reset']}
-        return fmt % data
+        if self.supported:
+            color = self.colors.get(levelname, self.colors['NOTSET'])
+            reset = self.colors['reset']
+        else:
+            color = ''
+            reset = ''
+        return self.fmt % {'color': color, 'level': levelname, 'reset': reset} % data
 
 
 class WebdriverAction(argparse.Action):
