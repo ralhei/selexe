@@ -7,6 +7,7 @@ import logging
 import functools
 import time
 import timeit
+import six
 
 from selenium import webdriver
 from parse_sel import SeleniumParser
@@ -43,7 +44,7 @@ class SelexeRunner(object):
         """
         @param filename: Selenium IDE file
         @param baseuri: base url for selenium tests
-        @param fixtures:
+        @param fixtures: 2-tuple of callable fixtures or module path with global SetUp and tearDown functions
         @param pmd: launches pdb on fail if True, defaults to False
         @param timeit: logs time taken by every command on logging level INFO if True, defaults to False
         @param driver: selenium driver as string, defaults to 'firefox'
@@ -136,28 +137,40 @@ class SelexeRunner(object):
         
     @staticmethod
     def findFixtureFunctions(modulePath=None):
+        """
+        Get setUp and tearDown functions in module whose path is given or, if single or pair of callables are given,
+        return them.
+
+        @param modulePath: path, callable or pair of callables.
+        @return: pair of callables, callable and None, or (None, None).
+        """
+        # Pair of callables
         if hasattr(modulePath, '__iter__') and all(callable(i) for i in modulePath):
             return modulePath[0], modulePath[1]
+
+        # Callable
         if callable(modulePath):
             return modulePath, None
 
-        if modulePath:
-            path, moduleWithExt = os.path.split(os.path.realpath(modulePath))
-            module = os.path.splitext(moduleWithExt)[0]
-            if path and not path in sys.path:
-                sys.path.append(path)
-            mod = __import__(os.path.basename(module))
-            setUpFunc = getattr(mod, 'setUp', None)
-            tearDownFunc = getattr(mod, 'tearDown', None)
+        # Path
+        if isinstance(modulePath, six.string_types):
+            directory, filename = os.path.split(os.path.realpath(modulePath))
+            modulename, extension = os.path.splitext(filename)
+            if directory and not directory in sys.path:
+                sys.path.append(directory)
+            module = __import__(modulename)
+            setUpFunc = getattr(module, 'setUp', None)
+            tearDownFunc = getattr(module, 'tearDown', None)
             if setUpFunc or tearDownFunc:
                 logger.info('Using fixtures module %s (setUp: %s, tearDown: %s)' %
                             (modulePath, setUpFunc is not None, tearDownFunc is not None))
             else:
                 logger.warning('Successfully imported fixtures module %s, but found no setUp or tearDown functions' %
                                 modulePath)
-        else:
-            logger.info('Using no fixtures')
-            setUpFunc, tearDownFunc = None, None
-        return setUpFunc, tearDownFunc
+            return setUpFunc, tearDownFunc
+
+        # Nothing
+        logger.info('Using no fixtures')
+        return None, None
 
 findFixtureFunctions = SelexeRunner.findFixtureFunctions # backwards compatibility

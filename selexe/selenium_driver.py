@@ -54,7 +54,7 @@ def create_verify(func, inverse=False):
             else:
                 verificationError = 'Actual value "%s" did not match "%s"' % (result, expectedResult)
         logger.error(verificationError)
-        self.verificationErrors.append(verificationError)        
+        self._verification_errors.append(verificationError)
         return False
     return wrap_func
 
@@ -238,7 +238,10 @@ class SeleniumDriver(object):
     @property
     def retries(self):
         """
-        Iterable that sleeps and raises RuntimeError timeout if exhausted
+        Iterable that sleeps, poll and finally raises RuntimeError timeout if exhausted
+
+        @yields None before sleeping continuously until timeout
+        @raises RuntimeError if timeout is exhausted
         """
         for i in xrange(self._num_repeats):
             yield
@@ -247,15 +250,20 @@ class SeleniumDriver(object):
 
     @property
     def verification_errors(self):
+        """
+        List of verification errors
+
+        :return: safe copy if internal verification error list
+        """
         return list(self._verification_errors)
 
 
     def __init__(self, driver, base_url=None, timeout=10000, poll=0.1):
         """
-        :param driver: selenium.WebDriver instance
-        :param base_url: base url or None
-        :param timeout: timeout
-        :param poll: polling interval for wait
+        @param driver: selenium.WebDriver instance
+        @param base_url: base url or None
+        @param timeout: timeout
+        @param poll: polling interval for wait
         """
         self.driver = driver
         self.base_url = base_url or ''
@@ -278,18 +286,27 @@ class SeleniumDriver(object):
 
     def save_screenshot(self, path):
         """
-        Save screenshot to given path
-        :param path:
+        Save screenshot to given file path.
+
+        @param path: filename where screenshot will be written on.
         """
         self.driver.save_screenshot(path)
 
     def __call__(self, command, target, value=None, **kw):
         """
         Make an actual call to a Selenium action method.
+
         Examples for methods are 'verifyText', 'assertText', 'waitForText', etc., so methods that are
         typically available in the Selenium IDE.
+
         Most methods are dynamically created through decorator functions (from 'wd_SEL*-methods) and hence are
         dynamically looked up in the class dictionary.
+
+        @param command: Selenium IDE command.
+        @param target: command's first parameter, usually target.
+        @param value: command's second parameter, optional.
+        @param **kw: commamnd's extra keyword arguments, optional.
+        @return value returned by command, usually True, False or string.
         """
         try:
             method = getattr(self, command)
@@ -346,6 +363,9 @@ class SeleniumDriver(object):
         Expand variables contained in selenese files.
         Multiple variables can be contained in a string from a selenese file. The format is ${<VARIABLENAME}.
         Those are replaced from self.storedVariables via a re.sub() method.
+
+        @param s: text whose variables will be expanded
+        @return given text with expanded variables
         """
         return self.sel_var_pat.sub(lambda matchobj: self.storedVariables[matchobj.group(1)], s)
 
@@ -410,10 +430,16 @@ class SeleniumDriver(object):
     @seleniumcommand
     def select(self, target, value):
         """
-        Select an option of a select box.
-        @param target: a element locator pointing at a select element
-        @param value: an option locator which points at an option of the select element
-        Option locators can have the following formats:
+        Select an option from a drop-down using an option locator.
+
+        Option locators provide different ways of specifying options of an HTML Select element (e.g. for selecting a specific option, or for asserting that the selected option satisfies a specification). There are several forms of Select Option Locator.
+
+        @param target: an element locator identifying a drop-down menu
+        @param value: an option locator (a label by default) which points at an option of the select element
+
+        Option locator format
+        ----------------------
+
         label=labelPattern: matches options based on their labels, i.e. the visible text. (This is the default.)
             example: "label=regexp:^[Oo]ther"
         value=valuePattern: matches options based on their values.
@@ -503,7 +529,10 @@ class SeleniumDriver(object):
     @seleniumcommand
     def fireEvent(self, target, value):
         """
+        @param target: an element locator
+        @param value: <not used>
         """
+        #TODO: Implement properly
         if (value == 'blur'):
             target_elem = self._find_target(target)
             actions = ActionChains(self.driver)
@@ -535,66 +564,184 @@ class SeleniumDriver(object):
         @param value: the timeout in milliseconds, after which the function will raise an error. If this value
         is not specified, the default timeout will be used. See the setTimeoutAndPoll function for the default timeout.
         """
-        locator = 'null' if target == 'null' else 'name=%s' % target
         for i in self.retries:
             try:
-                self._selectWindow(locator)
+                self._selectWindow(target, mode='popup')
                 self.driver.switch_to_window(0)
                 self._find_target('xpath=/html')._id
                 break
             except (NoSuchWindowException, WebDriverException):
                 pass
 
+    def _selectWindowByTitle(self, title):
+        """
+        Switch to window with given title
+
+        @param title: str
+        @return: handle of the window or None if not found
+        """
+        # title search
+        current_window_handle = self.driver.current_window_handle
+        for handle in self.driver.window_handles:
+            self.driver.switch_to.window(handle)
+            if self.driver.find_element_by_xpath("/html/head/title").text == title:
+                return
+        self.driver.switch_to.window(current_window_handle)
+        raise NoSuchWindowException('Could not find window with title %s' % title)
+
+    def _selectWindowByExpression(self, expression):
+        """
+        Switch to window with given javascript expression
+
+        @param title: str
+        @raises: handle of the window or None if not found
+        """
+        current_window_handle = self.driver.current_window_handle
+        json_handle = json.dumps(current_window_handle)
+        attribute = '_selexe_window_selected_from'
+        # Mark window as requested by current window
+        script = (
+            'var w = eval(%(code)s);'
+            'return w&&!!(w.%(attribute)s=%(handle)s);'
+            ) % {
+            'code': json.dumps(expression),
+            'attribute': attribute,
+            'handle': json_handle,
+            }
+        found = self.driver.execute_script(script)
+        # Search window marked by current window handle
+        if found:
+            for handle in self.driver.window_handles:
+                self.driver.switch_to.window(handle)
+                if self.driver.execute_script('return self.%s||null;' % attribute) == current_window_handle:
+                    return
+        self.driver.switch_to.window(current_window_handle)
+        raise NoSuchWindowException('Could not find window with expression %s' % expression)
+
+    def _selectNonTopWindow(self):
+        """
+        Select first non-top window
+        :return:
+        """
+        current_window_handle = self.driver.current_window_handle
+        for handle in self.driver.window_handles:
+            self.driver.switch_to.window(handle)
+            if self.driver.execute_script("return window!==window.top"):
+                return
+        self.driver.switch_to.window(current_window_handle)
+        raise NoSuchWindowException('Could not find any non-top popUp')
+
+    def _selectWindow(self, target, mode='window'):
+        """
+        Selenium core's selectWindow and selectPopUp behaves differently, this method provides those two behaviors.
+
+        :param target: selector given to command
+        :param mode: either 'popup' or 'window', defaults to 'window'.
+        :return:
+        """
+         # Note: locators' precedence is relevant, see below
+        locators = ('var', 'name', 'title') if mode == 'window' else ('name', 'var', 'title')
+        current = ('null', '', None)
+        ttype, ttarget = self._tag_and_value(target, extra_locators=locators)
+        if ttype == 'name':
+            self.driver.switch_to.window(ttarget)
+        elif ttype == 'var':
+            self._selectWindowByExpression('window.%s' % ttarget)
+        elif ttype == 'title':
+            self._selectWindowByTitle(ttarget)
+        elif target in current or ttarget in current:
+            if mode =='window':
+                # select first window
+                self.driver.switch_to.window(0)
+            elif mode == 'popup':
+                self._selectNonTopWindow()
+            else:
+                raise NotImplementedError('No default for mode %r' % mode)
+        else:
+            for ttype in locators:
+                try:
+                    self._selectPopUp('%s=%s' % (ttype, ttarget))
+                    break
+                except NoSuchWindowException:
+                    pass
+            else:
+                raise NoSuchWindowException('Could not find window with target %s' % ttarget)
 
     @seleniumcommand
     def selectWindow(self, target, value=None):
         """
-        Select a popup window using a window locator. Once a popup window has been selected, all commands go to that window. 
-        To select the main window again, use null as the target or leave it empty. The only locator option which is supported currently
-        is 'name=' which finds the window using its internal JavaScript "name" property.
-        Not yet supported are: 'title' and 'var'. The IDE has sophisticated routine for missing locator option which will most
-        likely not be implemented.
+        Selects a popup window using a window locator; once a popup window has been selected, all commands go to that
+        window. To select the main window again, use null as the target.
+
+        Window locators provide different ways of specifying the window object: by title, by internal JavaScript "name",
+        or by JavaScript variable.
+
+            * title=My Special Window: Finds the window using the text that appears in the title bar. Be careful; two
+              windows can share the same title. If that happens, this locator will just pick one.
+            * name=myWindow: Finds the window using its internal JavaScript "name" property. This is the second
+              parameter "windowName" passed to the JavaScript method window.open(url, windowName, windowFeatures,
+              replaceFlag) (which Selenium intercepts).
+            * var=variableName: Some pop-up windows are unnamed (anonymous), but are associated with a JavaScript
+              variable name in the current application window, e.g. "window.foo = window.open(url);". In those cases,
+              you can open the window using "var=foo".
+
+        If no window locator prefix is provided, we'll try to guess what you mean like this:
+            1. If windowID is null, (or the string "null") then it is assumed the user is referring to the original
+               window instantiated by the browser).
+            2. If the value of the "windowID" parameter is a JavaScript variable name in the current application window,
+               then it is assumed that this variable contains the return value from a call to the JavaScript
+               window.open() method.
+            3. Otherwise, selenium looks in a hash it maintains that maps string names to window "names".
+            4. If that fails, we'll try looping over all of the known windows to try to find the appropriate "title".
+               Since "title" is not necessarily unique, this may have unexpected behavior.
+
+        If you're having trouble figuring out the name of a window that you want to manipulate, look at the Selenium log
+        messages which identify the names of windows created via window.open (and therefore intercepted by Selenium).
+        You will see messages like the following for each window as it is opened:
+
+        debug: window.open call intercepted; window ID (which you can use with selectWindow()) is "myNewWindow"
+
+        In some cases, Selenium will be unable to intercept a call to window.open (if the call occurs during or before
+        the "onLoad" event, for example). (This is bug SEL-339.) In those cases, you can force Selenium to notice the
+        open window's name by using the Selenium openWindow command, using an empty (blank) url, like this:
+        openWindow("", "myFunnyWindow").
+
         @param target: the JavaScript window ID of the window to select
-        @param value: <not used>
         """
-        self._selectWindow(target)
-    
-    
-    def _selectWindow(self, target):
-        current = ('null', '', None)
-        blank = ('_blank',)
-        ttype, ttarget = self._tag_and_value(target, extra_locators=('name', 'title'))
-        if target in current or ttarget in current:
-            self.driver.switch_to_window(0)
-        elif target in blank or ttarget in blank:
-            self.driver.switch_to_window(self.driver.window_handles[1])
-        elif ttype == 'name':
-            self.driver.switch_to_window(ttarget)
-        elif ttype == 'title':
-            for window in self.driver.window_handles:
-                self.driver.switch_to_window(window)
-                if self.driver.find_element_by_xpath("/html/head/title").text == ttarget:
-                    break
-            else:
-                raise NoSuchElementException('Unable to select window with title %s' % ttarget)
-        else:
-            raise NotImplementedError('No way to find the window: use "name" or "title" locators of specify target as "null"')
+        self._selectWindow(target, mode='window')
         
     @seleniumcommand    
-    def selectPopUp(self, target, value=None):
+    def selectPopUp(self, target='null', value=None):
         """
-        Alias for selectWindow.
+        Simplifies the process of selecting a popup window (and does not offer functionality beyond what selectWindow()
+        already provides).
+
+        * If windowID is either not specified, or specified as "null", the first non-top window is selected.
+          The top window is the one that would be selected by selectWindow() without providing a windowID.
+          This should not be used when more than one popup window is in play.
+        * Otherwise, the window will be looked up considering windowID as the following in order:
+            1. The "name" of the window, as specified to window.open().
+            2. A javascript variable which is a reference to a window.
+            3. The title of the window. This is the same ordered lookup performed by selectWindow.
+
+        Important: Selenium core documentation states *WRONGLY*:
+
+            This is the same ordered lookup performed by selectWindow.
+
+        Its wrong because selectPopUp tests name before variable, and selectWindow looks for variable first.
+
+        @param target: an identifier for the popup window, which can take on a number of different meanings
         """
-        self.selectWindow(target, value)
+        self._selectWindow(target, mode='popup')
     
     @seleniumcommand
     def selectFrame(self, target, value=None):
         """
-        Select a frame within the current window. (You may invoke this command multiple times to select nested frames.) 
-        You can also select a frame by its 0-based index number; select the first frame with "0", or the third frame 
-        with "2". To select the top frame, you may use "relative=top". Not yet supported is "relative=parent".
-        @param target: an element locator identifying a frame or iframe.
-        @param value: <not used>
+        Selects a frame within the current window. (You may invoke this command multiple times to select nested frames.) To select the parent frame, use "relative=parent" as a locator; to select the top frame, use "relative=top". You can also select a frame by its 0-based index number; select the first frame with "index=0", or the third frame with "index=2".
+
+        You may also use a DOM expression to identify the frame you want directly, like this: dom=frames["main"].frames["subframe"]
+
+        @param target: an element locator identifying a frame or iframe
         """
         if target.startswith('relative='):
             if target[9:] == 'top':
@@ -604,9 +751,13 @@ class SeleniumDriver(object):
             else:
                 raise NoSuchFrameException
         else:
-            try:
-                frame = int(target)
-            except (ValueError, TypeError):
+            frame = None
+            if target.isdigit():
+                try:
+                    frame = int(target)
+                except (ValueError, TypeError):
+                    pass
+            if frame is None:
                 frame = self._find_target(target)
             self.driver.switch_to_frame(frame)
 
@@ -704,11 +855,163 @@ class SeleniumDriver(object):
         actions.perform()
 
     @seleniumcommand
-    def keyUpAndWait(self, target, value=None):
-        target_elm = self._find_target(target)
-        actions = ActionChains(self.driver)
-        actions.key_up(target_elm, value)
-        actions.perform()
+    def metaKeyDown(self, target=None, value=None):
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def metaKeyUp(self, target=None, value=None):
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def mouseDown(self, target, value=None):
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def mouseDownAt(self, target, value):
+        """
+        @param target: locator
+        @param value: coordstring
+        """
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def mouseDownRight(self, target, value=None):
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def mouseDownRightAt(self, target, value):
+        """
+        @param target: locator
+        @param value: coordstring
+        """
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def mouseMove(self, target, value=None):
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def mouseMoveAt(self, target, value):
+        """
+        @param target: locator
+        @param value: coordstring
+        """
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def mouseUp(self, target, value=None):
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def mouseUpAt(self, target, value):
+        """
+        @param target: locator
+        @param value: coordstring
+        """
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def mouseUpRight(self, target, value=None):
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def mouseUpRightAt(self, target, value):
+        """
+        @param target: locator
+        @param value: coordstring
+        """
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def openWindow(self, target, value):
+        """
+        Opens a popup window (if a window with that ID isn't already open). After opening the window, you'll need to select it using the selectWindow command.
+
+        This command can also be a useful workaround for bug SEL-339. In some cases, Selenium will be unable to intercept a call to window.open (if the call occurs during or before the "onLoad" event, for example). In those cases, you can force Selenium to notice the open window's name by using the Selenium openWindow command, using an empty (blank) url, like this: openWindow("", "myFunnyWindow").
+
+        @param target: the URL to open, which can be blank
+        @param value: the JavaScript window ID of the window to select
+        """
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def pause(self, target, value=None):
+        """
+        Wait for the specified amount of time (in milliseconds)
+
+        @param target: the amount of time to sleep (in milliseconds)
+        """
+        time.sleep(target/1000.) # TODO: find a better way
+
+    @seleniumcommand
+    def refresh(self, target=None, value=None):
+        """
+        Simulates the user clicking the "Refresh" button on their browser.
+        """
+        self.driver.refresh()
+
+    @seleniumcommand
+    def removeAllSelections(self, target, value=None):
+        """
+        Unselects all of the selected options in a multi-select element.
+
+        @param target: an element locator identifying a multi-select box
+        """
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def removeScript(self, target, value=None):
+        """
+        Removes a script tag from the Selenium document identified by the given id. Does nothing if the referenced tag doesn't exist.
+
+        @param target: the id of the script element to remove.
+        """
+        script = (
+            'var a=document.getElementById(%(target)s);'
+            'a&&a.parentNode.removeChild(a);'
+            ) % {
+            'target': json.dumps(target)
+            }
+        self.driver.execute_script(script)
+
+    @seleniumcommand
+    def removeSelection(self, target, value):
+        """
+        Remove a selection from the set of selected options in a multi-select element using an option locator. @see #doSelect for details of option locators
+
+        @param target: an element locator identifying a multi-select box
+        @param value: an option locator (a label by default)
+        """
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def rollup(self, target, value):
+        """
+        Executes a command rollup, which is a series of commands with a unique name, and optionally arguments that control the generation of the set of commands. If any one of the rolled-up commands fails, the rollup is considered to have failed. Rollups may also contain nested rollups.
+
+        @param target: the name of the rollup command
+        @param value: keyword arguments string that influences how the rollup expands into commands
+        """
+        raise NotImplementedError('not implemented yet')
+
+    @seleniumcommand
+    def runScript(self, target, value=None):
+        """
+        Creates a new "script" tag in the body of the current test window, and adds the specified text into the body of the command. Scripts run in this way can often be debugged more easily than scripts executed using Selenium's "getEval" command. Beware that JS exceptions thrown in these script tags aren't managed by Selenium, so you should probably wrap your script in try/catch blocks if there is any chance that the script will throw an exception.
+
+        @param target: the JavaScript snippet to run
+        """
+        script = (
+            'var parent=document.getElementsByTagName(\'head\')[0]||document,'
+                'script=document.createElement(\'script\'),'
+                'content=document.createTextNode(%(content)s);'
+            'script.attributes.type=\'text/javascript\';'
+            'script.appendChild(content);'
+            'parent.appendChild(script);'
+            ) % {
+            'content': json.dumps(value),
+            }
+        self.driver.execute_script(script)
 
     ###
     # Section 2: All wd_SEL*-statements (from which all other methods are created dynamically via decorators)
@@ -719,7 +1022,7 @@ class SeleniumDriver(object):
         Verify that the specified text pattern appears somewhere on the page shown to the user.
         @param target: a pattern to match with the text of the page 
         @param value: <not used>
-        @return: true if the pattern matches the text, false otherwise
+        @return true if the pattern matches the text, false otherwise
         """
         text = beautifulsoup.BeautifulSoup(self.driver.page_source).text
         return True, self._isContained(target, text)
@@ -751,7 +1054,7 @@ class SeleniumDriver(object):
         Verify that the specified element is somewhere on the page. Catch a NoSuchElementException in order to return a result.
         @param target: an element locator
         @param value: <not used>
-        @return: true if the element is present, false otherwise
+        @return true if the element is present, false otherwise
         """
         try:
             self._find_target(target)
@@ -765,7 +1068,7 @@ class SeleniumDriver(object):
         Get the value of an element attribute.
         @param target: an element locator followed by an @ sign and then the name of the attribute, e.g. "foo@bar"
         @param value: the expected value of the specified attribute
-        @return: the value of the specified attribute
+        @return the value of the specified attribute
         """  
         target, sep, attr = target.rpartition("@")
         attrValue = self._find_target(target).get_attribute(attr)
@@ -779,7 +1082,7 @@ class SeleniumDriver(object):
         Get given expression value
         @param target: value to store
         @param value: variable name
-        @return: the value of the specified attribute
+        @return the value of the specified attribute
         """
         return value, target
 
@@ -789,19 +1092,20 @@ class SeleniumDriver(object):
         Get value returned by given javascript expression
         @param target: value to store
         @param value: variable name
-        @return: the value of the specified attribute
+        @return the value of the specified attribute
         """
         reset = ['document'] # ensure consistent behavior
         js = (
-            'var %s,'
-                'storedVars = %s,'
-                'r = eval(\'%s\');'
+            'var %(reset)s,'
+                'storedVars=%(variables)s,'
+                'r = eval(%(target)s);'
+            # We need to care about Selenium IDE returning 'null' instead of 'undefined'.
             'return [\'\'+(r===undefined?null:r), storedVars];'
-        ) % (
-            ',    '.join('%s = undefined' % i for i in reset),
-            json.dumps(self.storedVariables),
-            target.replace('\'', '\\\''),
-        )
+            ) % {
+            'reset': ','.join('%s = undefined' % i for i in reset),
+            'variables': json.dumps(self.storedVariables),
+            'target': json.dumps(target),
+            }
         result, self.storedVariables = self.driver.execute_script(js)
         return value, result
     
@@ -811,7 +1115,7 @@ class SeleniumDriver(object):
         Get the text of an element. This works for any element that contains text.
         @param target: an element locator
         @param value: the expected text of the element
-        @return: the text of the element
+        @return the text of the element
         """
         return value, self._find_target(target).text.strip()
     
@@ -821,7 +1125,7 @@ class SeleniumDriver(object):
         Get the value of an input field (or anything else with a value parameter).
         @param target: an element locator
         @param value: the expected element value
-        @return: the element value
+        @return the element value
         """    
         return value, self._find_target(target).get_attribute("value").strip()
     
@@ -831,7 +1135,7 @@ class SeleniumDriver(object):
         Get the number of nodes that match the specified xpath, e.g. "//table" would give the number of tables.
         @param target: an xpath expression to locate elements
         @param value: the number of nodes that should match the specified xpath
-        @return: the number of nodes that match the specified xpath
+        @return the number of nodes that match the specified xpath
         """      
         count = len(self.driver.find_elements_by_xpath(target))
         return int(value), count
@@ -844,7 +1148,7 @@ class SeleniumDriver(object):
         with getAlert, the next webdriver action will fail.
         @param target: the expected message of the most recent JavaScript alert
         @param value: <not used>
-        @return: the message of the most recent JavaScript alert
+        @return the message of the most recent JavaScript alert
         """
         alert = Alert(self.driver)
         text = alert.text.strip()
@@ -867,7 +1171,7 @@ class SeleniumDriver(object):
         Get the text from a cell of a table. The cellAddress syntax is tableLocator.row.column, where row and column start at 0.
         @param target: a cell address, e.g. "css=#myFirstTable.2.3"
         @param value: the text which is expected in the specified cell.
-        @return: the text from the specified cell
+        @return the text from the specified cell
         """ 
         target, row, column = target.rsplit(".", 2)
         table = self._find_target(target)
@@ -886,7 +1190,7 @@ class SeleniumDriver(object):
         """
         Get the tag of an element locator to identify its type.
         @param target: an element locator
-        @return: an element locator splited into its tag and value.
+        @return an element locator splited into its tag and value.
 
         Examples:
 
@@ -956,13 +1260,12 @@ class SeleniumDriver(object):
         """
         Select and execute the appropriate find_element_* method for an element locator.
         @param target: an element locator
-        @return: the webelement instance found by a find_element_* method
+        @return the webelement instance found by a find_element_* method
         """
         tt, target = self._tag_and_value(target, dom_locator_functions=self.custom_locators)
 
         if tt == 'dom':
-            js = target.replace('\'', '\\\'')
-            find_one = functools.partial(self.driver.execute_script, 'return eval(\'%s\')' % js)
+            find_one = functools.partial(self.driver.execute_script, 'return eval(%s)' % json.dumps(target))
             find_many = find_one
         else:
             by = self._by_target_locators[tt]
@@ -990,7 +1293,7 @@ class SeleniumDriver(object):
         see: http://release.seleniumhq.org/selenium-remote-control/0.9.2/doc/dotnet/Selenium.html    
         @param expectedResult: the expected result of a selenese command
         @param result: the actual result of a selenese command
-        @return: true if matches, false otherwise
+        @return true if matches, false otherwise
         """
         # 1) equality expression (works for booleans, integers, etc)
         if not isinstance(expectedResult, six.string_types):
@@ -1029,7 +1332,7 @@ class SeleniumDriver(object):
         This function handles all three kinds of String-match Patterns which Selenium defines. See the _matches method for further details.
         @param pat: a string pattern
         @param text: a text in which the pattern should be found
-        @return: true if found, false otherwise
+        @return true if found, false otherwise
         """
         # strings of each pattern may end with "..." to shorten them.
         pat = cls._sel_pattern_abbreviation(pat)
@@ -1059,7 +1362,7 @@ class SeleniumDriver(object):
         Translate a wildcard pattern into in regular expression (in order to search with it in Python).
         Note: Since the IDE wildcard expressions do not support bracket expressions they are not handled here.
         @param wc: a wildcard pattern
-        @return: the translation into a regular expression.
+        @return the translation into a regular expression.
         """
         # escape metacharacters not used in wildcards
         metacharacters = ['.', '$','|','+','(',')', '[', ']']

@@ -1,12 +1,19 @@
 """
 UT functions to test loading and execution of pure selenese files
 """
-import sys, subprocess, time
-###
+import os
+import sys
+import subprocess
+
 from selenium.common.exceptions import NoSuchElementException
-###
+
 sys.path.insert(0, '..')
 from selexe import SelexeRunner
+
+SELEXE_OPTIONS = {
+    'driver': 'phantomjs',
+    'executable_path': os.environ.get('PHANTOMJS_PATH', 'phantomjs'),
+}
 
 def setup_module():
     global testserver
@@ -33,21 +40,21 @@ def teardown_module():
 
 def test_simple_page():
     """run simple selenese test, without fixtures"""
-    selexe = SelexeRunner('verifyTests.sel')
+    selexe = SelexeRunner('verifyTests.sel', **SELEXE_OPTIONS)
     res = selexe.run()
     assert res == []
 
 
 def test_simple_form():
     """run simple selenese test, without fixtures"""
-    selexe = SelexeRunner('form1.sel')
+    selexe = SelexeRunner('form1.sel', **SELEXE_OPTIONS)
     res = selexe.run()
     assert res == []
 
 
 def test_fixtures():
     """run empty selenese test file, just to check whether fixtures work"""
-    selexe = SelexeRunner('fixtures.sel', fixtures='selexeFixtures.py')
+    selexe = SelexeRunner('fixtures.sel', fixtures='selexeFixtures.py', **SELEXE_OPTIONS)
     res = selexe.run()
     assert res == []
     
@@ -56,7 +63,7 @@ def test_fixtures_fail():
     """run empty selenese test file, just to check whether fixtures work
     Since fixtures argument is not given to SelexeRunner this test should fail.
     """
-    selexe = SelexeRunner('fixtures.sel', fixtures=None)
+    selexe = SelexeRunner('fixtures.sel', fixtures=None, **SELEXE_OPTIONS)
     try:
         res = selexe.run()
     except NoSuchElementException:
@@ -65,7 +72,7 @@ def test_fixtures_fail():
 
 def test_failing_test():
     """run simple selenese test, with verifyText find wrong string"""
-    selexe = SelexeRunner('verifyTestFailing.sel')
+    selexe = SelexeRunner('verifyTestFailing.sel', **SELEXE_OPTIONS)
     res = selexe.run()
     assert res == ['Actual value "DIV 1" did not match "This should fail!"']
 

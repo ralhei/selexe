@@ -1,11 +1,11 @@
 """
 UT module to test selenium-driver commands
 """
-import sys, py.test, time
-sys.path.insert(0, '..')
-###
+import os
+import sys
+import py.test
+
 from selenium import webdriver
-from selexe import selenium_driver
 from selenium.common.exceptions import NoSuchElementException
 from selenium.common.exceptions import NoAlertPresentException
 from selenium.common.exceptions import NoSuchWindowException
@@ -13,16 +13,18 @@ from selenium.common.exceptions import UnexpectedTagNameException
 from selenium.common.exceptions import NoSuchFrameException
 from selenium.common.exceptions import NoSuchAttributeException
 from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver.firefox import firefox_profile
 
+sys.path.insert(0, '..')
+
+from selexe import selenium_driver
 from test_execute_sel_files import setup_module, teardown_module
 
 BASE_URI = 'http://localhost:8080'
-
+PHANTOMJS_PATH = os.environ.get('PHANTOMJS_PATH', 'phantomjs')
 
 class Test_SeleniumDriver(object):
     def setup_method(self, method):
-        self.driver = webdriver.Firefox()
+        self.driver = webdriver.PhantomJS(executable_path=PHANTOMJS_PATH)
         self.sd = selenium_driver.SeleniumDriver(self.driver, BASE_URI)
         self.sd.setTimeoutAndPoll(1000, 1) # during testing only wait 1sec until timeout should be raised
 
