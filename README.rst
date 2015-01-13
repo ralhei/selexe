@@ -73,4 +73,5 @@ Credits
 -------
 
 * Ralph Heinkel, initial project maintainer.
+* Felipe A. Hernandez, contributor.
 * All of those great people who developed Selenium.
