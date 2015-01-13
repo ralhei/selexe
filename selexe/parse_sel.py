@@ -4,7 +4,7 @@ import os
 import logging
 import io
 import six
-import BeautifulSoup
+import bs4 as beautifulsoup
 import htmlentitydefs
 
 logger = logging.getLogger(__name__)
@@ -20,7 +20,7 @@ class SeleniumTestCaseParser(object):
     def __init__(self, path, data):
         self.path = path
         assert isinstance(data, six.text_type), '%r is required' % six.text_type
-        self.soup = BeautifulSoup.BeautifulSoup(data)
+        self.soup = beautifulsoup.BeautifulSoup(data)
         baseuri = self.soup.find('link', attrs={'rel': 'selenium.base'})
         self.baseuri = baseuri['href'].rstrip('/') if baseuri else None
 
@@ -68,10 +68,10 @@ class SeleniumTestCaseParser(object):
         for tr in body.findAll('tr'):
             try:
                 command, target, value = [
-                    self.force_unicode(td.renderContents(), BeautifulSoup.DEFAULT_OUTPUT_ENCODING)
+                    self.force_unicode(td.renderContents(), beautifulsoup.DEFAULT_OUTPUT_ENCODING)
                     for td in tr.findAll('td')
                     ]
-            except:
+            except ValueError:
                 logger.debug('Row %r failed' % tr, exc_info=True)
                 continue
             v_value = self.clean_text(value)
