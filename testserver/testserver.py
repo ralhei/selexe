@@ -27,4 +27,5 @@ def post():
 
 
 if __name__ == '__main__':
-    run(host='localhost', port=8080)
+    import sys
+    run(host='localhost', port=sys.argv[1])

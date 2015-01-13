@@ -1,30 +1,40 @@
 """
 UT module to test selenium-driver commands
 """
-import sys, py.test, time
-sys.path.insert(0, '..')
-###
+import os
+import sys
+import py.test
+import logging
+
+
 from selenium import webdriver
-from selexe import selenium_driver
 from selenium.common.exceptions import NoSuchElementException
 from selenium.common.exceptions import NoAlertPresentException
 from selenium.common.exceptions import NoSuchWindowException
 from selenium.common.exceptions import UnexpectedTagNameException
 from selenium.common.exceptions import NoSuchFrameException
 from selenium.common.exceptions import NoSuchAttributeException
+from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver.firefox import firefox_profile
 
-from test_execute_sel_files import setup_module, teardown_module
+sys.path.insert(0, '..')
 
-BASE_URI = 'http://localhost:8080'
+from selexe import selenium_driver, selexe_runner
+from environment import SELEXE_DRIVER, SELEXE_TIMEOUT, SELEXE_BASEURI, PHANTOMJS_PATH, SELEXE_SKIP_ALERT
+from test_execute_sel_files import setup_module, teardown_module # used by test.py
 
+
+
+logger = logging.getLogger(__name__)
 
 class Test_SeleniumDriver(object):
     def setup_method(self, method):
-        self.driver = webdriver.Firefox()
-        self.sd = selenium_driver.SeleniumDriver(self.driver, BASE_URI)
-        self.sd.setTimeoutAndPoll(1000, 1) # during testing only wait 1sec until timeout should be raised
+        driver_options = {}
+        if SELEXE_DRIVER == 'phantomjs':
+            driver_options['executable_path'] = PHANTOMJS_PATH
+        self.driver = selexe_runner.SelexeRunner.webdriver_classes[SELEXE_DRIVER](**driver_options)
+        self.sd = selenium_driver.SeleniumDriver(self.driver, SELEXE_BASEURI)
+        self.sd.timeout = SELEXE_TIMEOUT # during testing only wait 1sec until timeout should be raised
 
     def teardown_method(self, method):
         self.driver.quit()
@@ -36,17 +46,17 @@ class Test_SeleniumDriver(object):
         assert self.sd('getText', 'css=h1') == 'H1 text'
         #
         self.sd('verifyText', 'css=h1', 'H1 text')
-        assert self.sd.getVerificationErrors() == []
+        assert not self.sd.verification_errors
         #
         # check failing verifyText command:
         self.sd('verifyText', 'css=h1', 'H1 WROOOOOONG text')
-        assert self.sd.getVerificationErrors() == ['Actual value "H1 text" did not match "H1 WROOOOOONG text"']
-        self.sd.initVerificationErrors()  # reset verification messages
+        assert self.sd.verification_errors
+        self.sd.clean_verification_errors()  # reset verification messages
         #
         # check failing verfiyNotText command:
         self.sd('verifyNotText', 'css=h1', 'H1 text')
-        assert self.sd.getVerificationErrors() == ['Actual value "H1 text" did match "H1 text"']
-        self.sd.initVerificationErrors()  # reset verification messages
+        assert self.sd.verification_errors
+        self.sd.clean_verification_errors()  # reset verification messages
         #
         self.sd('assertText', 'css=h1', 'H1 text')
         #
@@ -71,35 +81,40 @@ class Test_SeleniumDriver(object):
         # check waiting for an existent text
         self.sd('waitForText', 'css=h1', 'H1 text')
         #
-        # check that waiting for non-existing text finally raises RuntimeError (after timeout):
-        with py.test.raises(RuntimeError):
+        # check that waiting for non-existing text finally raises TimeoutException
+        with py.test.raises(TimeoutException):
             self.sd('waitForText', 'css=h1', 'H1 WROOOOOONG text')
         #
-        # check that waiting for existing text with 'waitForNotText' raises RuntimeError (after timeout)
-        with py.test.raises(RuntimeError):
+        # check that waiting for existing text with 'waitForNotText' raises TimeoutException
+        with py.test.raises(TimeoutException):
             self.sd('waitForNotText', 'css=h1', 'H1 text')
             
-        # check waiting for text which is inserted on the page 2000 ms after clicking on a button
-        self.sd.setTimeoutAndPoll(5000, 0.2)
+        # check waiting for text which is inserted on the page 500 ms after clicking on a button
+        self.sd.timeout = 1000
         self.sd('click', 'id=textInsertDelay')
         self.sd('waitForTextPresent', 'Text was inserted')
         #
-        # check waiting for a text which is deleted on the page 2000 ms after clicking on a button
+        # check waiting for a text which is deleted on the page 500 ms after clicking on a button
         self.sd('click', 'id=textRemoveDelay')
         self.sd('waitForNotTextPresent', 'Text was inserted')
-        self.sd.setTimeoutAndPoll(1000, 1)
+        self.sd.timeout = SELEXE_TIMEOUT
         #
-        # check that waiting for non-existing text finally raises RuntimeError a (after timeout):
-        with py.test.raises(RuntimeError):
+        # check that waiting for non-existing text finally raises TimeoutException
+        with py.test.raises(TimeoutException):
             self.sd('waitForText', 'css=h1', 'H1 WROOOOOONG text')
         #
-        # check that waiting for existing text with 'waitForNotText' raises a RuntimeError (after timeout)
-        with py.test.raises(RuntimeError):
+        # check that waiting for existing text with 'waitForNotText' raises aTimeoutException
+        with py.test.raises(TimeoutException):
             self.sd('waitForNotText', 'css=h1', 'H1 text')
 
              
     def test_Alert_methods(self):
         """check alert methods"""
+        if SELEXE_SKIP_ALERT:
+            # phantomJS does not support alerts, so we added an option for deactivating them
+            logger.warn('Alert tests have been deactivated by environ')
+            return
+
         # check that an alert can be found
         self.sd('open', '/static/page1')
         self.sd('click', '//input[@type="button" and @value="alert button"]')
@@ -112,18 +127,18 @@ class Test_SeleniumDriver(object):
         # check that a wrong alert text adds a verification error
         self.sd('click', '//input[@value="alert button"]')
         self.sd('verifyAlert', 'a wrong text')
-        assert self.sd.getVerificationErrors() == ['Actual value "hello" did not match "a wrong text"']
-        self.sd.initVerificationErrors()  # reset verification messages
+        assert self.sd.verification_errors
+        self.sd.clean_verification_errors()  # reset verification messages
         #
         # check that a missing alert adds a verification error (added by verify wrapper)     
         self.sd('verifyAlert', 'hello')
-        assert self.sd.getVerificationErrors() == ['There were no alerts or confirmations']
-        self.sd.initVerificationErrors()  # reset verification messages
+        assert self.sd.verification_errors
+        self.sd.clean_verification_errors()  # reset verification messages
         #
         # check that a missing alert adds a verification error (added by verifyNot wrapper)   
         self.sd('verifyNotAlert', 'hello')
-        assert self.sd.getVerificationErrors() == ['There were no alerts or confirmations']
-        self.sd.initVerificationErrors()  # reset verification messages
+        assert self.sd.verification_errors
+        self.sd.clean_verification_errors()  # reset verification messages
         #
         # Check that the message of the alert window gets stored
         self.sd('click', '//input[@value="alert button"]')
@@ -144,8 +159,8 @@ class Test_SeleniumDriver(object):
         #
         # check failing for incorrect number of xpathes
         self.sd('verifyXpathCount', '//option', "3")
-        assert self.sd.getVerificationErrors() == ['Actual value "4" did not match "3"']
-        self.sd.initVerificationErrors()  # reset verification messages
+        assert self.sd.verification_errors
+        self.sd.clean_verification_errors()  # reset verification messages
         
     
     def test_Select_method(self):
@@ -268,13 +283,12 @@ class Test_SeleniumDriver(object):
         # check that the focus is still on the main window.
         assert self.sd('getText', 'css=h1') == 'H1 text'
         #
-        # check waiting for a non-existent pop up with specified timeout = 2.1s
-        with py.test.raises(NoSuchWindowException):
-            self.sd('waitForPopUp', "no pop up", "1100")
+        # check waiting for a non-existent pop up with specified timeout = 0.5s
+        with py.test.raises(TimeoutException):
+            self.sd('waitForPopUp', "no pop up", "500")
         #
-        # check failing when selecting "null" as target (not implemented yet)
-        with py.test.raises(NotImplementedError):    
-            self.sd('waitForPopUp', "null")
+        # check selecting "null" as target (any popup)
+        self.sd('waitForPopUp')
         #
         # switch focus to the pop up
         self.sd('selectWindow', "name=stekie")
@@ -287,9 +301,8 @@ class Test_SeleniumDriver(object):
         assert self.sd('getText', 'css=#h1_1') == 'H1 text'
         self.sd('assertNotTextPresent', 'This is a pop up')
         #
-        # check failing when using a locator parameter which is not implemented yet
-        with py.test.raises(NotImplementedError):
-            self.sd('selectWindow', "stekie")
+        # check using a locator parameter
+        self.sd('selectWindow', "stekie")
     
             
     def test_ElementPresent_method(self):
@@ -298,17 +311,17 @@ class Test_SeleniumDriver(object):
         #
         # check that an element can be found
         self.sd('verifyElementPresent', '//div[@class="class1"]')
-        assert self.sd.getVerificationErrors() == []
+        assert not self.sd.verification_errors
         #
         # check that a missing element adds a verification error
         self.sd('verifyElementPresent', '//div[@class="class"]')
-        assert self.sd.getVerificationErrors() == ['false']
-        self.sd.initVerificationErrors()  # reset verification messages
+        assert self.sd.verification_errors
+        self.sd.clean_verification_errors()  # reset verification messages
         #
         # check that an element which should not be present adds a verification error
         self.sd('verifyNotElementPresent', '//div[@class="class1"]')
-        assert self.sd.getVerificationErrors() == ['true']
-        self.sd.initVerificationErrors()  # reset verification messages              
+        assert self.sd.verification_errors
+        self.sd.clean_verification_errors()  # reset verification messages              
         #
         # check that a missing element raises an assertion error and not a NoSuchElementException (it is caught in the method)
         with py.test.raises(AssertionError):
@@ -370,8 +383,7 @@ class Test_SeleniumDriver(object):
         with py.test.raises(AssertionError):
             self.sd('assertTextPresent', 'glob:H.* tex\w+')
         self.sd('assertTextPresent', 'glob:H1*text')
-        
-        
+
     def test_missing_and_unknown_locator_parameter(self):
         self.sd('open', '/static/form1')
         #
@@ -424,8 +436,7 @@ class Test_SeleniumDriver(object):
         # check that unknown relative parameter raises a NoSuchFrameException
         with py.test.raises(NoSuchFrameException):
             self.sd("selectFrame", "relative=child")
-        
-        
+
     def test_Value_and_Attribute_method(self):
         ''' testing the value and attribute method'''
         self.sd('open', '/static/form1')
@@ -435,17 +446,16 @@ class Test_SeleniumDriver(object):
         #
         # check that a wrong value adds a verification error
         self.sd('verifyValue', 'id=id_text1', '')
-        assert self.sd.getVerificationErrors() == ['Actual value "input_text1" did not match ""']
-        self.sd.initVerificationErrors()  # reset verification messages  
+        assert self.sd.verification_errors
+        self.sd.clean_verification_errors()  # reset verification messages  
         #
         # check that the value of the 'type' attribute can be found and is correct
         self.sd('assertAttribute', 'id=id_submit@type', 'submit')
         #
         # check that a wrong value adds a verification error
         self.sd('verifyAttribute', 'id=id_submit@type', 'submits')
-        assert self.sd.getVerificationErrors() == ['Actual value "submit" did not match "submits"']
-        self.sd.initVerificationErrors()  # reset verification messages  
-    
+        assert self.sd.verification_errors
+        self.sd.clean_verification_errors()  # reset verification messages
     
     def test_Type_method(self):
         ''' testing the type method'''
@@ -471,10 +481,8 @@ class Test_SeleniumDriver(object):
         # searching in a table with thead, tbody and tfoot elements. The order of these elements in the 
         # html code does not correspond to the displayed order and thus the search address.
         self.sd('assertTable', 'css=table#thirdTable.2.2', 'London')
-
         
     def test_Command_NotImplementedError(self):
         ''' checking that a non-existent command raises a NotImplementedError'''
         with py.test.raises(NotImplementedError):
             self.sd('myNewCommand', 'action')
-        
