@@ -37,10 +37,9 @@ class SelexeRunner(object):
         'android': webdriver.Android,
         'remote': webdriver.Remote,
     }
-    webdriver_timeout_support = ('firefox', 'ie')
 
     def __init__(self, filename, baseuri=None, fixtures=None, pmd=False, timeit=False, driver='firefox',
-                 window_size=None, encoding='utf-8', timeout=10000, error_screenshot_dir=None, **options):
+                 window_size=None, encoding='utf-8', timeout=30000, error_screenshot_dir=None, **options):
         """
         @param filename: Selenium IDE file
         @param baseuri: base url for selenium tests
@@ -50,7 +49,7 @@ class SelexeRunner(object):
         @param driver: selenium driver as string, defaults to 'firefox'
         @param window_size: desired window size as (width, height) tuple, defaults to None
         @param encoding: encoding will be used by Selenium IDE test parser
-        @param timeout: maximum milliseconds will be waited for every command before failing, defaults to 10000 (10s)
+        @param timeout: maximum milliseconds will be waited for every command before failing, defaults to 30000 (30s)
         @param error_screenshot_dir: directory will be used to store screenshots when test fails
         @param **options: extra keyword arguments will be forwarded directly to selenium driver
         """
@@ -69,11 +68,9 @@ class SelexeRunner(object):
     def run(self):
         """Start execution of selenium tests (within setUp and tearDown wrappers)"""
         logger.info('Selexe working on file %s' % self.filename)
-        options = dict(self.options)
-        if self.webdriver in self.webdriver_timeout_support:
-            options['timeout'] = self.timeout + 10
         parser = self.parser_class.from_path(self.filename, encoding=self.encoding)
-        driver = self.webdriver_classes[self.webdriver](**options)
+        # Note: some RemoteWebDriver-based drivers accept an `timeout` parameter but it's *absolutely unused*
+        driver = self.webdriver_classes[self.webdriver](**self.options)
         if self.window_size:
             width, height = self.window_size
             driver.set_window_size(width, height)
@@ -114,22 +111,18 @@ class SelexeRunner(object):
                 self.tearDownFunc(sd)
                 logger.info("tearDown() finished")
 
-    def _execute_timeit(self, sd, command, target, value):
-        time = timeit.timeit(functools.partial(sd, command, target, value), number=1)
-        logger.info("Executed in %f sec" % (time))
-
-    def _execute_command(self, sd, command, target, value):
-        sd(command, target, value)
-
     def _executeSelenium(self, seleniumParser, sd):
         """Execute the actual selenium statements found in *sel file"""
-        execute = self._execute_timeit if self.timeit else self._execute_command
         for baseuri, command, target, value in seleniumParser:
             if not self.baseuri and baseuri and baseuri != sd.base_url:
                 logger.info("BaseURI: %s" % baseuri)
                 sd.base_url = baseuri
             try:
-                execute(sd, command, target, value)
+                if self.timeit:
+                    time = timeit.timeit(functools.partial(sd, command, target, value), number=1)
+                    logger.info("Executed in %f sec" % (time))
+                else:
+                    sd(command, target, value)
             except:
                 logger.error('Command %s(%r, %r) failed on \'%s\'.' % (command, target, value, sd.driver.current_url))
                 raise

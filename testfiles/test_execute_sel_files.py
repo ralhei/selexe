@@ -7,35 +7,24 @@ import subprocess
 
 from selenium.common.exceptions import NoSuchElementException
 
+from environment import SELEXE_DRIVER, SELEXE_TIMEOUT, SELEXE_BASEURI, PHANTOMJS_PATH, SELEXE_TESTSERVER_PORT
 sys.path.insert(0, '..')
 from selexe import SelexeRunner
 
 SELEXE_OPTIONS = {
-    'driver': 'phantomjs',
-    'executable_path': os.environ.get('PHANTOMJS_PATH', 'phantomjs'),
+    'driver': SELEXE_DRIVER,
+    'timeout': SELEXE_TIMEOUT,
+    'baseuri': SELEXE_BASEURI,
 }
+if SELEXE_DRIVER == 'phantomjs':
+    SELEXE_OPTIONS['executable_path'] = PHANTOMJS_PATH
 
 def setup_module():
-    global testserver
-    testserver = subprocess.Popen(['python', 'testserver.py'], cwd='../testserver',
-                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    err = []
-    '''for i in range(3):  # read max. 3 lines from stderr
-        s = testserver.stderr.readline()
-        err.append(s)
-        if s.startswith('Listening on http'):
-            # loop until the server is up and running
-            break
-    else:
-        testserver.terminate()
-        sys.stderr.write('\nError: Testserver (bottle.py) is not starting up properly! Messages:\n\n')
-        for i in err:
-            sys.stderr.write(i)
-        sys.exit(1)'''
+    setup_module.testserver = subprocess.Popen(('python', 'testserver.py', '%d' % SELEXE_TESTSERVER_PORT), cwd='../testserver')
 
 
 def teardown_module():
-    testserver.terminate()
+    setup_module.testserver.terminate()
 
 
 def test_simple_page():
@@ -75,5 +64,3 @@ def test_failing_test():
     selexe = SelexeRunner('verifyTestFailing.sel', **SELEXE_OPTIONS)
     res = selexe.run()
     assert res == ['Actual value "DIV 1" did not match "This should fail!"']
-
-

@@ -1,40 +1,32 @@
 <html>
 	<head>
-        <script TYPE="text/javascript">
+        <script type="text/javascript">
             function popup(mylink, windowname) {
                 if (!window.focus) return true;
-                var href;
-                if (typeof(mylink) == 'string')
-                    href = mylink;
-                else
-                    href = mylink.href;
+                var href = typeof(mylink) == 'string' ? mylink : mylink.href;
                 window.open(href, windowname, 'width=400, height=200, scrollbars=yes');
                 return false;
             }
-        </script>
-        <script TYPE="text/javascript">
         	function insertTextDelay(time) {
-        		setTimeout(function() { 
+        		setTimeout(function() {
         			var p2 = document.getElementsByTagName('p')[0];
 					var newP = document.createElement("p");
 					var newT = document.createTextNode('Text was inserted');
 					newP.appendChild(newT);
 					p2.parentNode.insertBefore(newP,p2);
-        		}, time)
+        		}, time);
         	}
-		</script>
-		<script type="text/javascript">
 			function removeTextDelay(time) {
-				setTimeout(function() { 
-					nodes = document.getElementsByTagName('p');
+				setTimeout(function() {
+					var nodes = document.getElementsByTagName('p');
 					if (nodes.length > 1) {
 						document.body.removeChild(nodes[0]);
 					} else {
-						alert("You can not delete the last text node") 
+						alert("You can not delete the last text node");
 					}
-				}, time)
+				}, time);
 			}
-		</script> 
+		</script>
     </head>
     <body>
         <h1 id="h1_1"> H1 text</h1>
@@ -45,8 +37,8 @@
         <p>This is some arbitrary text to check for verifyTexts</p>
         <input type="button" id="alertButton" value="alert button" onclick="alert('hello');"/>
 		<br/>
-		<input type="button" id="textInsertDelay" value="Push this button to insert a text in 2000 milliseconds" onClick="insertTextDelay(2000);"/>
+		<input type="button" id="textInsertDelay" value="Push this button to insert a text in 500 milliseconds" onClick="insertTextDelay(500);"/>
 		<br/>
-		<input type="button" id="textRemoveDelay" value="Push this button to delete a text in 2000 milliseconds" onClick="removeTextDelay(2000);"/>
+		<input type="button" id="textRemoveDelay" value="Push this button to delete a text in 500 milliseconds" onClick="removeTextDelay(500);"/>
     </body>
 </html>
