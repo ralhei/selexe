@@ -1,4 +1,4 @@
-BeautifulSoup
+beautifulsoup4
 selenium
 six
 setuptools

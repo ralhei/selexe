@@ -13,7 +13,7 @@ import new
 import json
 import six
 import functools
-import BeautifulSoup as beautifulsoup
+import bs4 as beautifulsoup
 
 from six.moves import xrange
 from six import iteritems, itervalues

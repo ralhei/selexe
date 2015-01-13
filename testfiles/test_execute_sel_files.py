@@ -30,22 +30,22 @@ def teardown_module():
 def test_simple_page():
     """run simple selenese test, without fixtures"""
     selexe = SelexeRunner('verifyTests.sel', **SELEXE_OPTIONS)
-    res = selexe.run()
-    assert res == []
+    errors = selexe.run()
+    assert not errors
 
 
 def test_simple_form():
     """run simple selenese test, without fixtures"""
     selexe = SelexeRunner('form1.sel', **SELEXE_OPTIONS)
-    res = selexe.run()
-    assert res == []
+    errors = selexe.run()
+    assert not errors
 
 
 def test_fixtures():
     """run empty selenese test file, just to check whether fixtures work"""
     selexe = SelexeRunner('fixtures.sel', fixtures='selexeFixtures.py', **SELEXE_OPTIONS)
-    res = selexe.run()
-    assert res == []
+    errors = selexe.run()
+    assert not errors
     
 
 def test_fixtures_fail():
@@ -54,7 +54,7 @@ def test_fixtures_fail():
     """
     selexe = SelexeRunner('fixtures.sel', fixtures=None, **SELEXE_OPTIONS)
     try:
-        res = selexe.run()
+        errors = selexe.run()
     except NoSuchElementException:
         pass
 
@@ -62,5 +62,5 @@ def test_fixtures_fail():
 def test_failing_test():
     """run simple selenese test, with verifyText find wrong string"""
     selexe = SelexeRunner('verifyTestFailing.sel', **SELEXE_OPTIONS)
-    res = selexe.run()
-    assert res == ['Actual value "DIV 1" did not match "This should fail!"']
+    errors = selexe.run()
+    assert errors
