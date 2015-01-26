@@ -1242,6 +1242,16 @@ class SeleniumDriver(object):
         return True, False
 
     @seleniumgeneric
+    def Title(self, target=None, value=None):
+        """
+        Gets the title of the current page.
+        @param target: <not used>
+        @param value: <not used>
+        @return the title of the current page
+        """
+        return value, self.driver.title
+
+    @seleniumgeneric
     def Location(self, target, value=None):
         """
         Get absolute url of current page
