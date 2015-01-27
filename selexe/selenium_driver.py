@@ -1249,7 +1249,7 @@ class SeleniumDriver(object):
         @param value: <not used>
         @return the title of the current page
         """
-        return value, self.driver.title
+        return target, self.driver.title
 
     @seleniumgeneric
     def Location(self, target, value=None):
