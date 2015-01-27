@@ -383,6 +383,13 @@ class Test_SeleniumDriver(object):
         with py.test.raises(AssertionError):
             self.sd('assertTextPresent', 'glob:H.* tex\w+')
         self.sd('assertTextPresent', 'glob:H1*text')
+        #
+        # method: unicode selector and text plus exact
+        self.sd('assertTextPresent', u'Unicode character \xd1')
+        self.sd('assertText', u'link=Unicode character \xd1', u'Unicode character \xd1')
+        self.sd('assertText', u'link=Unicode character \xd1', u'exact:Unicode character \xd1')
+        with py.test.raises(AssertionError):
+            self.sd('assertText', u'link=Unicode character \xd1', u'Udnicode character \xd1')
 
     def test_missing_and_unknown_locator_parameter(self):
         self.sd('open', '/static/form1')
