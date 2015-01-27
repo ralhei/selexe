@@ -704,7 +704,7 @@ class SeleniumDriver(object):
         if target_elem.is_selected():
             target_elem.click()
 
-    @seleniumcommand
+    @seleniumimperative
     def mouseOver(self, target, value=None):
         """
         Simulate a user moving the mouse over a specified element.
@@ -732,7 +732,7 @@ class SeleniumDriver(object):
             actions.click()
             actions.perform()
 
-    @seleniumcommand
+    @seleniumimperative
     def mouseOut(self, target, value=None):
         """
         Simulate a user moving the mouse away from a specified element.
