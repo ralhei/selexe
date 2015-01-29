@@ -5,6 +5,7 @@ Selexe's selenium driver provides Selenium core API methods in top of webdriver 
 as reference.
 
 """
+import itertools
 import logging
 import time
 import re
@@ -225,7 +226,7 @@ class seleniumimperative(SeleniumMultiCommandType):
         """
         @type driver: SeleniumDriver
         """
-        docid = driver._deprecate_page()
+        driver._deprecate_page()
         self.fnc(driver, target, value=value)
         driver._wait_pageload()
 
@@ -663,6 +664,15 @@ class SeleniumDriver(object):
                 select.select_by_visible_text(option.text)
             elif tag == 'index':
                 select.select_by_index(int(tvalue))
+
+    @seleniumcommand
+    def close(self):
+        """
+        Simulates the user clicking the "close" button in the titlebar of a popup window or tab.
+
+        :return:
+        """
+        self.driver.close()
 
     @seleniumcommand
     def waitForPageToLoad(self):
@@ -1227,17 +1237,35 @@ class SeleniumDriver(object):
         """
         raise NotImplementedError('Unsupported by Selenium IDE and unable to get Selenium document using webdriver.')
 
+    def _xpath_soup(self, element):
+        """
+        Generate xpath of soup element
+        :param element: bs4.element.Tag
+        :return: xpath locator for given element
+        """
+        components = []
+        child = element if element.name else element.parent
+        for parent in child.parents:
+            previous = itertools.islice(parent.children, 0, parent.contents.index(child))
+            xpath_tag = child.name
+            xpath_index = sum(1 for i in previous if i.name == xpath_tag) + 1
+            components.append(xpath_tag if xpath_index == 1 else '%s[%d]' % (xpath_tag, xpath_index))
+            child = parent
+        components.reverse()
+        return 'xpath=/%s' % '/'.join(components)
+
     @seleniumgeneric
     def TextPresent(self, target, value=None):
         """
-        Verify that the specified text pattern appears somewhere on the page shown to the user.
+        Verify that the specified text pattern appears somewhere on the page shown to the user (if visible).
         @param target: a pattern to match with the text of the page
         @param value: <not used>
         @return true if the pattern matches the text, false otherwise
         """
         doc = beautifulsoup.BeautifulSoup(self.driver.page_source).body
         for result in doc.findAll(text=self._translatePatternToRegex(target)):
-            if result.findParent('script') is None:
+            xpath = self._xpath_soup(result)
+            if self._find_target(xpath).is_displayed():
                 return True, True
         return True, False
 
@@ -1336,12 +1364,13 @@ class SeleniumDriver(object):
     @seleniumgeneric
     def Text(self, target, value):
         """
-        Get the text of an element. This works for any element that contains text.
+        Get the text of an element. This works for any element that contains text, even if not visible.
         @param target: an element locator
         @param value: the expected text of the element
         @return the text of the element
         """
-        return value, self._find_target(target).text.strip()
+        js = 'return arguments[0].textContent||arguments[0].innerText||\'\';'
+        return value, self.driver.execute_script(js, self._find_target(target)).strip()
 
     @seleniumgeneric
     def Value(self, target, value):
@@ -1465,6 +1494,7 @@ class SeleniumDriver(object):
         Select and execute the appropriate find_element_* method for an element locator.
         @param target: an element locator
         @return the webelement instance found by a find_element_* method
+        @rtype: selenium.webdriver.remote.webelement.WebElement
         """
         if self.custom_locators:
             template = '(function(locator, inWindow, inDocument){%s}(\'%s\', window, window.document));'
