@@ -15,6 +15,7 @@ import json
 import six
 import functools
 import bs4 as beautifulsoup
+import selenium.webdriver
 
 from six.moves import xrange
 from six import iteritems, itervalues
@@ -1237,11 +1238,11 @@ class SeleniumDriver(object):
         """
         raise NotImplementedError('Unsupported by Selenium IDE and unable to get Selenium document using webdriver.')
 
-    def _xpath_soup(self, element):
+    def _element_from_soup(self, element):
         """
-        Generate xpath of soup element
-        :param element: bs4.element.Tag
-        :return: xpath locator for given element
+        Get selenium object pointing to given soup element
+        @param element: bs4.element.Tag
+        @return: selenium element
         """
         components = []
         child = element if element.name else element.parent
@@ -1252,7 +1253,29 @@ class SeleniumDriver(object):
             components.append(xpath_tag if xpath_index == 1 else '%s[%d]' % (xpath_tag, xpath_index))
             child = parent
         components.reverse()
-        return 'xpath=/%s' % '/'.join(components)
+        return self._find_target('xpath=/%s' % '/'.join(components))
+
+    def _soup_from_element(self, element):
+        """
+        Get BeautifulSoup element from selenium element (or locator)
+        @param element: selenium element or locator
+        @return: BeautifulSoup element
+        """
+        if isinstance(element, six.string_types):
+            element = self._find_target(element)
+
+        hierarchy = []
+        try:
+            while True:
+                parent = element.find_element_by_xpath('..')
+                siblings = parent.find_elements_by_xpath(element.tag_name)
+                hierarchy.append((element.tag_name, siblings.index(element)+1))
+                element = parent
+        except NoSuchElementException:
+            pass
+        hierarchy.reverse()
+        selector = ' > '.join('%s:nth-of-type(%d)' % (tagname, index) for tagname, index in hierarchy)
+        return beautifulsoup.BeautifulSoup(self.driver.page_source).select(selector)[0]
 
     @seleniumgeneric
     def TextPresent(self, target, value=None):
@@ -1264,8 +1287,7 @@ class SeleniumDriver(object):
         """
         doc = beautifulsoup.BeautifulSoup(self.driver.page_source).body
         for result in doc.findAll(text=self._translatePatternToRegex(target)):
-            xpath = self._xpath_soup(result)
-            if self._find_target(xpath).is_displayed():
+            if self._element_from_soup(result).is_displayed():
                 return True, True
         return True, False
 
@@ -1369,7 +1391,11 @@ class SeleniumDriver(object):
         @param value: the expected text of the element
         @return the text of the element
         """
-        js = 'return arguments[0].textContent||arguments[0].innerText||\'\';'
+        if isinstance(self.driver, selenium.webdriver.Firefox):
+            # extremely slow workaround to https://code.google.com/p/selenium/issues/detail?id=8390
+            soup = self._soup_from_element(target)
+            return value, soup.get_text().strip()
+        js = 'return arguments[0].textContent||arguments[0].innerText||"";'
         return value, self.driver.execute_script(js, self._find_target(target)).strip()
 
     @seleniumgeneric
