@@ -114,9 +114,9 @@ class SelexeRunner(object):
     def _executeSelenium(self, seleniumParser, sd):
         """Execute the actual selenium statements found in *sel file"""
         for baseuri, command, target, value in seleniumParser:
-            if not self.baseuri and baseuri and baseuri != sd.base_url:
+            if not self.baseuri and baseuri and baseuri != sd.baseuri:
                 logger.info("BaseURI: %s" % baseuri)
-                sd.base_url = baseuri
+                sd.baseuri = baseuri
             try:
                 if self.timeit:
                     time = timeit.timeit(functools.partial(sd, command, target, value), number=1)
