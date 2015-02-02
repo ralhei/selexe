@@ -1269,13 +1269,13 @@ class SeleniumDriver(object):
             while True:
                 parent = element.find_element_by_xpath('..')
                 siblings = parent.find_elements_by_xpath(element.tag_name)
-                hierarchy.append((element.tag_name, siblings.index(element)+1))
+                hierarchy.append('%s:nth-of-type(%d)' % (element.tag_name, siblings.index(element)+1))
                 element = parent
         except NoSuchElementException:
             pass
+        hierarchy.append(element.tag_name)
         hierarchy.reverse()
-        selector = ' > '.join('%s:nth-of-type(%d)' % (tagname, index) for tagname, index in hierarchy)
-        return beautifulsoup.BeautifulSoup(self.driver.page_source).select(selector)[0]
+        return beautifulsoup.BeautifulSoup(self.driver.page_source).select(' > '.join(hierarchy))[0]
 
     @seleniumgeneric
     def TextPresent(self, target, value=None):
