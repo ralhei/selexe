@@ -667,7 +667,7 @@ class SeleniumDriver(object):
                 select.select_by_index(int(tvalue))
 
     @seleniumcommand
-    def close(self):
+    def close(self, target=None, value=None):
         """
         Simulates the user clicking the "close" button in the titlebar of a popup window or tab.
 
@@ -676,7 +676,7 @@ class SeleniumDriver(object):
         self.driver.close()
 
     @seleniumcommand
-    def waitForPageToLoad(self):
+    def waitForPageToLoad(self, target=None, value=None):
         """
         Wait until page changes
         """
