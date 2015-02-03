@@ -47,9 +47,10 @@ class TTYColorFormat(UserString):
 
 class WebdriverAction(argparse.Action):
     drivers = sorted(selexe_runner.SelexeRunner.webdriver_classes)
+    default = ['firefox']
 
-    def __init__(self, option_strings, dest, required=False, help=None, metavar=None, default=None):
-        super(WebdriverAction, self).__init__(option_strings=option_strings, dest=dest, default=default,
+    def __init__(self, option_strings, dest, required=False, help=None, metavar=None):
+        super(WebdriverAction, self).__init__(option_strings=option_strings, dest=dest, default=self.default,
                                               choices=self.drivers, nargs=1, required=required,
                                               help=help, metavar=metavar)
     def __call__(self, parser, namespace, values, option_string=None):
@@ -68,6 +69,19 @@ class VerbosityAction(argparse.Action):
         prev = getattr(namespace, self.dest, None)
         next = self.default if prev is None else self.levels[min(self.levels.index(prev)+1, len(self.levels)-1)]
         setattr(namespace, self.dest, next)
+
+
+class SizeAction(argparse.Action):
+    default = (1280, 720)
+
+    def __init__(self, option_strings, dest, required=False, help=None, metavar=None):
+        super(SizeAction, self).__init__(option_strings=option_strings, dest=dest, default=self.default,
+                                         nargs=1, required=required, help=help, metavar=metavar)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        width, height = values[0].split('x')
+        value = (int(width), int(height))
+        setattr(namespace, self.dest, value)
 
 
 class DeprecatedLoggingAction(argparse.Action):
@@ -107,12 +121,14 @@ class SelexeArgumentParser(argparse.ArgumentParser):
     verbosity_action_class = VerbosityAction
     logging_action_class = DeprecatedLoggingAction
     selexe_action_class = DeprecatedAction
+    size_action_class = SizeAction
+
     def __init__(self):
         super(SelexeArgumentParser, self).__init__(description='Run Selenium IDE test files using webdriver')
         add = self.add_argument
         add('--timeit', action='store_true', default=False,
             help='measure time each command takes to execute, implies -v')
-        add('--driver', '-D', dest='drivers', action=self.webdriver_action_class, default=['firefox'],
+        add('--driver', '-D', dest='drivers', action=self.webdriver_action_class,
             help='choose selenium driver, defaults to firefox')
         add('--baseuri', '-U', action='store', default=None,
             help='base URI of server to run the selenium tests, ie. "http://localhost:8080"')
@@ -122,8 +138,11 @@ class SelexeArgumentParser(argparse.ArgumentParser):
             help='verbosity level, accumulated, ie. -vvv')
         add('--fixtures', '-F', action='store',
             help='python module containing setUp(driver) and/or tearDown(driver) fixture functions')
+        add('--size', '-s', metavar="WIDTHxHEIGHT", action=self.size_action_class,
+            help='selenium browser window size, ie. 1280x720')
         add('paths', metavar='PATH', nargs='+',
             help='Selenium IDE file paths')
+
         # deprecated
         add('--logging', action=self.logging_action_class)
         add('--selexe', action=self.selexe_action_class)
@@ -162,7 +181,7 @@ def main(argv=None):
     failed = 0
     for path in args.paths:
         for driver in args.drivers:
-            runner =  selexe_runner.SelexeRunner(path, baseuri=args.baseuri, pmd=args.pmd, fixtures=args.fixtures, timeit=args.timeit, driver=driver)
+            runner =  selexe_runner.SelexeRunner(path, baseuri=args.baseuri, pmd=args.pmd, fixtures=args.fixtures, timeit=args.timeit, driver=driver, window_size=args.size)
             errors = runner.run()
             if errors:
                 failed += 1

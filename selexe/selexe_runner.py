@@ -39,7 +39,7 @@ class SelexeRunner(object):
     }
 
     def __init__(self, filename, baseuri=None, fixtures=None, pmd=False, timeit=False, driver='firefox',
-                 window_size=None, encoding='utf-8', timeout=30000, error_screenshot_dir=None, **options):
+                 window_size=(1280, 720), encoding='utf-8', timeout=30000, error_screenshot_dir=None, **options):
         """
         @param filename: Selenium IDE file
         @param baseuri: base url for selenium tests
@@ -71,9 +71,8 @@ class SelexeRunner(object):
         parser = self.parser_class.from_path(self.filename, encoding=self.encoding)
         # Note: some RemoteWebDriver-based drivers accept an `timeout` parameter but it's *absolutely unused*
         driver = self.webdriver_classes[self.webdriver](**self.options)
-        if self.window_size:
-            width, height = self.window_size
-            driver.set_window_size(width, height)
+        width, height = self.window_size
+        driver.set_window_size(width, height)
         logger.info('baseURI: %s' % self.baseuri)
         try:
             sd = self.driver_class(driver, self.baseuri, self.timeout)
