@@ -973,6 +973,28 @@ class SeleniumDriver(object):
         """
         raise NotImplementedError('Unsupported by Selenium IDE and unable to get Selenium document using webdriver.')
 
+    def _selector_from_element(self, element):
+        """
+        Get unique css selector from selenium element (or locator)
+        @param element: selenium element or locator
+        @return:spath as string
+        """
+        if isinstance(element, six.string_types):
+            element = self._find_target(element)
+
+        hierarchy = []
+        try:
+            while True:
+                parent = element.find_element_by_xpath('..')
+                siblings = [i._id for i in parent.find_elements_by_xpath(element.tag_name)]
+                hierarchy.append('%s:nth-of-type(%d)' % (element.tag_name, siblings.index(element._id)+1))
+                element = parent
+        except NoSuchElementException:
+            pass
+        hierarchy.append(element.tag_name)
+        hierarchy.reverse()
+        return ' > '.join(hierarchy)
+
     def _element_from_soup(self, element):
         """
         Get selenium object pointing to given soup element
@@ -999,18 +1021,14 @@ class SeleniumDriver(object):
         if isinstance(element, six.string_types):
             element = self._find_target(element)
 
-        hierarchy = []
-        try:
-            while True:
-                parent = element.find_element_by_xpath('..')
-                siblings = parent.find_elements_by_xpath(element.tag_name)
-                hierarchy.append('%s:nth-of-type(%d)' % (element.tag_name, siblings.index(element)+1))
-                element = parent
-        except NoSuchElementException:
-            pass
-        hierarchy.append(element.tag_name)
-        hierarchy.reverse()
-        return beautifulsoup.BeautifulSoup(self.driver.page_source).select(' > '.join(hierarchy))[0]
+        css = self._selector_from_element(element)
+        if hasattr(element, '_context'):
+            with element._context:
+                source = self.driver.page_source
+        else:
+            source = self.driver.page_source
+
+        return beautifulsoup.BeautifulSoup(source).select(css)[0]
 
     @seleniumgeneric
     def TextPresent(self, target, value=None):

@@ -1,6 +1,9 @@
 
 import logging
 import functools
+import six
+
+from selenium.webdriver.remote.webelement import WebElement
 
 
 logger = logging.getLogger(__name__)
@@ -10,10 +13,13 @@ class ExternalContext(object):
     """
     Context manager will make driver to switch to iframe or window on enter, and restore original window on leave.
     """
+    __slots__ = ('driver', 'iframe_element', 'window_handle', '_default_handle')
+
     def __init__(self, driver, iframe_element=None, window_handle=None):
         self.driver = driver
         self.iframe_element = iframe_element
         self.window_handle = window_handle
+        self._default_handle = None
 
     def __enter__(self):
         self._default_handle = self.driver.current_window_handle
@@ -33,7 +39,10 @@ class ExternalObject(object):
     Base wrapper which simplify using elements not belonging to current window, switching to container window
     automatically when needed.
     """
+    __slots__ = ('_wrapped', '_iframe_element', '_window_handle')
+
     context_class = ExternalContext
+
     def __init__(self, wrapped, iframe_element=None, window_handle=None):
         """
         Generate object which stores a wrapped object and owner iframe_element or window_handle.
@@ -61,28 +70,34 @@ class ExternalObject(object):
         """
         return self.context_class(self._driver, self._iframe_element, self._window_handle)
 
-    def _decorate(self, fnc):
-        """
-        Decorator which wraps given function into ExternalContext manager
-
-        :param fnc: fnc to wrap
-        :return: wrapped function
-        """
-        @functools.wraps(fnc)
-        def wrapped(*args, **kwargs):
-            with self.context_class(self._driver, self._iframe_element, self._window_handle):
-                return fnc(*args, **kwargs)
-        return wrapped
-
 
 class ExternalElement(ExternalObject):
     """
     Element wrapper which run __getattr__ commands inside ExternalContext manager, and decorates returned callable
     objects.
     """
+
+    def _wrap(self, o):
+        """
+        Decorator which wraps given function into ExternalContext manager
+
+        :param fnc: fnc to wrap
+        :return: wrapped function
+        """
+        if isinstance(o, ExternalObject):
+            return o
+        elif callable(o):
+            @functools.wraps(o)
+            def wrapped(*args, **kwargs):
+                with self.context_class(self._driver, self._iframe_element, self._window_handle):
+                    return self._wrap(o(*args, **kwargs))
+            return wrapped
+        elif isinstance(o, WebElement):
+            return self.__class__(o, self._iframe_element, self._window_handle)
+        elif not isinstance(o, (six.string_types, dict)) and hasattr(o, '__iter__'):
+            return map(self._wrap, o)
+        return o
+
     def __getattr__(self, item):
         with self._context:
-            r = getattr(self._wrapped, item)
-        if callable(r):
-            return self._decorate(r)
-        return r
+            return self._wrap(getattr(self._wrapped, item))
