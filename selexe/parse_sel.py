@@ -14,7 +14,7 @@ class SeleniumTestCaseParser(object):
     __slots__ = ('path', 'soup', 'baseuri')
     htmlentity_map = htmlentitydefs.name2codepoint
     htmlentity_compiled_re = re.compile('&(%s);' % '|'.join(htmlentity_map))
-    br_compiled_re = re.compile(r"\s*<br />\s*")
+    br_compiled_re = re.compile(r"<br\s*/?>")
     tag_compiled_re = re.compile("<.*>")
 
     def __init__(self, path, data):
@@ -68,7 +68,7 @@ class SeleniumTestCaseParser(object):
         for tr in body.findAll('tr'):
             try:
                 command, target, value = [
-                    self.force_unicode(td.renderContents(), beautifulsoup.DEFAULT_OUTPUT_ENCODING)
+                    self.force_unicode(td.encode_contents(), beautifulsoup.DEFAULT_OUTPUT_ENCODING)
                     for td in tr.findAll('td')
                     ]
             except ValueError:

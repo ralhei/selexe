@@ -21,14 +21,14 @@ from six.moves import xrange
 
 from selenium.common.exceptions import NoSuchWindowException, NoSuchElementException, NoAlertPresentException,\
                                        NoSuchAttributeException, UnexpectedTagNameException, NoSuchFrameException, \
-                                       WebDriverException, TimeoutException
+                                       WebDriverException, TimeoutException, InvalidSelectorException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.alert import Alert
 
-from selenium_command import seleniumcommand, seleniumimperative, seleniumgeneric, selenium_multicommand_discover
-from selenium_external import ExternalElement, ExternalContext
+from selenium_command import seleniumcommand, seleniumimperative, seleniumgeneric, selenium_multicommand_discover, NOT_PRESENT_EXCEPTIONS
+from selenium_external import ExternalElement, ExternalContext, element_context, original_element
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ class SeleniumDriver(object):
         'name': None,
         'dom': None,
         'xpath': None,
-        'link': ('xpath', '//a[text()=\'%(value)s\']'),
+        'link': ('xpath', '//a[normalize-space(text())=\'%(value)s\']'),
         'css': None,
         'ui': None,
         }
@@ -315,7 +315,7 @@ class SeleniumDriver(object):
             try:
                 self._find_target(target, click=True).click()
                 break
-            except NoSuchElementException:
+            except NOT_PRESENT_EXCEPTIONS:
                 continue
 
     @seleniumimperative
@@ -486,7 +486,9 @@ class SeleniumDriver(object):
                     self._selectWindow(target, mode='popup')
                     self._find_target('xpath=/html')._id
                     break
-                except (NoSuchWindowException, WebDriverException):
+                except WebDriverException:
+                    pass
+                except NOT_PRESENT_EXCEPTIONS:
                     pass
         finally:
             self.driver.switch_to.window(current_window_handle)
@@ -983,15 +985,20 @@ class SeleniumDriver(object):
             element = self._find_target(element)
 
         hierarchy = []
-        try:
-            while True:
-                parent = element.find_element_by_xpath('..')
-                siblings = [i._id for i in parent.find_elements_by_xpath(element.tag_name)]
-                hierarchy.append('%s:nth-of-type(%d)' % (element.tag_name, siblings.index(element._id)+1))
-                element = parent
-        except NoSuchElementException:
-            pass
-        hierarchy.append(element.tag_name)
+        with element_context(element):
+            element = original_element(element)
+            try:
+                while True:
+                    parent = element.find_element_by_xpath('..')
+                    siblings = parent.find_elements_by_xpath(element.tag_name)
+                    hierarchy.append('%s:nth-of-type(%d)' % (element.tag_name, siblings.index(element) + 1))
+                    element = parent
+            except InvalidSelectorException:
+                # Ignore if triggered by find_element_by_xpath('..') on parent nodes
+                if self.driver.find_element_by_xpath('/%s' % element.tag_name)._id != element._id:
+                    import ipdb; ipdb.set_trace()
+                    raise
+            hierarchy.append(element.tag_name)
         hierarchy.reverse()
         return ' > '.join(hierarchy)
 
@@ -1021,11 +1028,12 @@ class SeleniumDriver(object):
         if isinstance(element, six.string_types):
             element = self._find_target(element)
 
-        css = self._selector_from_element(element)
-        if hasattr(element, '_context'):
-            with element._context:
-                source = self.driver.page_source
-        else:
+        try:
+            css = self._selector_from_element(element)
+        except NOT_PRESENT_EXCEPTIONS:
+            raise NoSuchElementException('Element disappeared from tree while running command.')
+
+        with element_context(element):
             source = self.driver.page_source
 
         return beautifulsoup.BeautifulSoup(source).select(css)[0]
@@ -1072,7 +1080,7 @@ class SeleniumDriver(object):
         """
         try:
             return True, self._find_target(target).is_displayed()
-        except NoSuchElementException:
+        except NOT_PRESENT_EXCEPTIONS:
             return True, False
 
     @seleniumgeneric
@@ -1086,7 +1094,7 @@ class SeleniumDriver(object):
         try:
             self._find_target(target)
             return True, True
-        except NoSuchElementException:
+        except NOT_PRESENT_EXCEPTIONS:
             return True, False
 
     @seleniumgeneric
@@ -1148,8 +1156,12 @@ class SeleniumDriver(object):
             # extremely slow workaround to https://code.google.com/p/selenium/issues/detail?id=8390
             soup = self._soup_from_element(target)
             return value, soup.get_text().strip()
+
         js = 'return arguments[0].textContent||arguments[0].innerText||"";'
-        return value, self.driver.execute_script(js, self._find_target(target)).strip()
+        element = self._find_target(target)
+        with element_context(element):
+            element = original_element(element)
+            return value, self.driver.execute_script(js, element).strip()
 
     @seleniumgeneric
     def Value(self, target, value):
@@ -1161,6 +1173,7 @@ class SeleniumDriver(object):
         """
         return value, self._find_target(target).get_attribute("value").strip()
 
+    @seleniumgeneric
     def XpathCount(self, target, value):
         """
         Get the number of nodes that match the specified xpath, e.g. "//table" would give the number of tables.
@@ -1306,7 +1319,7 @@ class SeleniumDriver(object):
         else:
             try:
                 return find_one()
-            except NoSuchElementException:
+            except NOT_PRESENT_EXCEPTIONS:
                 pass
 
         # Search for element in iframes (done by default in Selenium IDE)
@@ -1314,13 +1327,13 @@ class SeleniumDriver(object):
             with ExternalContext(self.driver, iframe):
                 try:
                     return ExternalElement(self._find_target(target), iframe)
-                except NoSuchElementException:
+                except NOT_PRESENT_EXCEPTIONS:
                     pass
 
         # Not found, raise
         raise NoSuchElementException('Element with %r not found.' % value)
 
-
+    _simplify_spaces = re.compile(r'\n\s+')
     @classmethod
     def _matches(cls, expectedResult, result):
         """
@@ -1337,7 +1350,10 @@ class SeleniumDriver(object):
         """
         if not isinstance(expectedResult, six.string_types): # equality for booleans, integers, etc
             return expectedResult == result
-        elif expectedResult.startswith("exact:"):
+        # Normalize line separators
+        expectedResult = cls._simplify_spaces.sub('\n ', expectedResult)
+        result = cls._simplify_spaces.sub('\n ', result)
+        if expectedResult.startswith("exact:"):
             return result == expectedResult[6:]
         match = cls._translatePatternToRegex(expectedResult).match(result)
         return False if match is None else result == match.group(0)

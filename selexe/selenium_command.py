@@ -2,10 +2,11 @@
 import logging
 import six
 
-from selenium.common.exceptions import NoSuchElementException, NoAlertPresentException
+from selenium.common.exceptions import NoSuchElementException, NoAlertPresentException, StaleElementReferenceException
 
 logger = logging.getLogger(__name__)
 
+NOT_PRESENT_EXCEPTIONS = (NoSuchElementException, NoAlertPresentException, StaleElementReferenceException)
 
 class SeleniumCommandType(object):
     __slots__ = ('fnc', 'name', 'docstring', 'defaults', 'wait_for_page', '_original_name')
@@ -281,7 +282,7 @@ class seleniumgeneric(SeleniumMultiCommandType):
                     logger.info('... waiting for%s %r' % (' not' if inverse else '', expectedResult))
                 if driver._matches(expectedResult, result) != inverse:
                     return
-            except (NoSuchElementException, NoAlertPresentException):
+            except NOT_PRESENT_EXCEPTIONS:
                 if inverse:
                     return
 
