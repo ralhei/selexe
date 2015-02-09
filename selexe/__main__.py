@@ -132,6 +132,8 @@ class SelexeArgumentParser(argparse.ArgumentParser):
             help='choose selenium driver, defaults to firefox')
         add('--baseuri', '-U', action='store', default=None,
             help='base URI of server to run the selenium tests, ie. "http://localhost:8080"')
+        add('--useragent', action='store', default=None,
+            help='selenium browser useragent')
         add('--pmd', action='store_true', default=False,
             help='postmortem debugging')
         add('--verbose', '-v', action=self.verbosity_action_class,
@@ -181,7 +183,9 @@ def main(argv=None):
     failed = 0
     for path in args.paths:
         for driver in args.drivers:
-            runner =  selexe_runner.SelexeRunner(path, baseuri=args.baseuri, pmd=args.pmd, fixtures=args.fixtures, timeit=args.timeit, driver=driver, window_size=args.size)
+            runner =  selexe_runner.SelexeRunner(path, baseuri=args.baseuri, pmd=args.pmd, fixtures=args.fixtures,
+                                                 timeit=args.timeit, driver=driver, window_size=args.size,
+                                                 useragent=args.useragent)
             errors = runner.run()
             if errors:
                 failed += 1

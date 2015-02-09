@@ -1266,7 +1266,6 @@ class SeleniumDriver(object):
             logger.error('WebDriverException, maybe caused by driver not supporting Alert control.')
             raise
 
-
     @seleniumgeneric
     def Table(self, target, value):
         """
@@ -1378,7 +1377,7 @@ class SeleniumDriver(object):
         for iframe in self.driver.find_elements_by_tag_name('iframe'):
             with ExternalContext(self.driver, iframe):
                 try:
-                    return ExternalElement.from_webelement(self._find_target(target), iframe)
+                    return ExternalElement.from_element(self._find_target(target), iframe)
                 except NOT_PRESENT_EXCEPTIONS:
                     pass
 

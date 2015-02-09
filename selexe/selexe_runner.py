@@ -10,6 +10,8 @@ import timeit
 import six
 
 from selenium import webdriver
+from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
+
 from parse_sel import SeleniumParser
 from selenium_driver import SeleniumDriver
 
@@ -35,11 +37,12 @@ class SelexeRunner(object):
         'safari': webdriver.Safari,
         'phantomjs': webdriver.PhantomJS,
         'android': webdriver.Android,
-        'remote': webdriver.Remote,
     }
+    webdriver_useragents = {}
 
     def __init__(self, filename, baseuri=None, fixtures=None, pmd=False, timeit=False, driver='firefox',
-                 window_size=(1280, 720), encoding='utf-8', timeout=30000, error_screenshot_dir=None, **options):
+                 window_size=(1280, 720), encoding='utf-8', timeout=30000, error_screenshot_dir=None, useragent=None,
+                 **options):
         """
         @param filename: Selenium IDE file
         @param baseuri: base url for selenium tests
@@ -59,11 +62,15 @@ class SelexeRunner(object):
         self.pmd = pmd
         self.timeit = timeit
         self.webdriver = driver
-        self.options = options
+        self.useragent = useragent
+
         self.timeout = timeout
         self.encoding = encoding
         self.error_screenshot_dir = error_screenshot_dir
         self.window_size = window_size
+
+        self.options = self._default_options()
+        self.options.update(options)
 
     def run(self):
         """Start execution of selenium tests (within setUp and tearDown wrappers)"""
@@ -79,6 +86,32 @@ class SelexeRunner(object):
             return self._wrapExecution(parser, sd)
         finally:
             driver.quit()
+
+    def _default_options(self):
+        """
+        Generate capabilities object for current webdriver
+
+        @return: capabilities object
+        """
+
+        useragent = self.useragent or self.webdriver_useragents.get(self.webdriver)
+        options = {}
+        if useragent:
+            if self.webdriver == 'phantomjs':
+                capabilities = DesiredCapabilities.PHANTOMJS.copy()
+                capabilities['phantomjs.page.settings.userAgent'] = useragent
+                options['desired_capabilities'] = capabilities
+            elif self.webdriver == 'firefox':
+                profile = webdriver.FirefoxProfile()
+                profile.set_preference('general.useragent.override', useragent)
+                options['firefox_profile'] = profile
+            elif self.webdriver == 'chrome':
+                chrome_options = webdriver.ChromeOptions()
+                chrome_options.add_argument('--user-agent=\'%s\'' % useragent.replace("'", "'\\''"))
+                options['chrome_options'] = chrome_options
+            else:
+                logger.exception('Custom useragent couldn\'t be set on %s driver.' % self.webdriver)
+        return options
 
     def _wrapExecution(self, seleniumParser, sd):
         """Wrap execution of selenium tests in setUp and tearDown functions if available"""

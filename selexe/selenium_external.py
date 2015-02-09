@@ -83,7 +83,7 @@ class ExternalElement(WebElement):
     context_class = ExternalContext
 
     @classmethod
-    def from_webelement(cls, webelement, frame_element=None, window_handle=None):
+    def from_element(cls, webelement, frame_element=None, window_handle=None):
         """
         Generate ExternalElement from an WebElement object
 
@@ -92,7 +92,9 @@ class ExternalElement(WebElement):
         @param window_handle:element whose object belongs to.
         @return: instance
         """
-        return cls(webelement._parent, webelement._id, frame_element, window_handle)
+        return cls(webelement._parent, webelement._id,
+                   getattr(webelement, '_frame_element', frame_element),
+                   getattr(webelement, '_window_handle', window_handle))
 
     def __init__(self, parent, id_, frame_element=None, window_handle=None):
         """
