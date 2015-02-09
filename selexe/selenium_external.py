@@ -73,33 +73,39 @@ class ExternalContext(object):
             raise value
 
 
-class ExternalObject(object):
+class ExternalElement(WebElement):
     """
     Base wrapper which simplify using elements not belonging to current window, switching to container window
     automatically when needed.
     """
-    __slots__ = ('_wrapped', '_frame_element', '_window_handle')
+    __slots__ = ('_parent', '_id', '_frame_element', '_window_handle')
 
     context_class = ExternalContext
 
-    def __init__(self, wrapped, frame_element=None, window_handle=None):
+    @classmethod
+    def from_webelement(cls, webelement, frame_element=None, window_handle=None):
+        """
+        Generate ExternalElement from an WebElement object
+
+        @param webelement: selenium.remote.webelement.WebElement object
+        @param frame_element: element whose object belongs to.
+        @param window_handle:element whose object belongs to.
+        @return: instance
+        """
+        return cls(webelement._parent, webelement._id, frame_element, window_handle)
+
+    def __init__(self, parent, id_, frame_element=None, window_handle=None):
         """
         Generate object which stores a wrapped object and owner frame_element or window_handle.
-
-        @param wrapped: wrapped object, can be Selenium element or selenium element method.
-        @param frame_element: element whose given wrapped object belongs to.
-        @param window_handle: window id whose given wrapped object belongs to.
+   
+        @param parent: selenium.webdriver.Remote driver object.
+        @param id_: selenium object internal id
+        @param frame_element: element whose object belongs to.
+        @param window_handle: element whose object belongs to.
         """
-        self._wrapped = wrapped
+        super(ExternalElement, self).__init__(parent, id_)
         self._frame_element = frame_element
         self._window_handle = window_handle
-
-    @property
-    def _driver(self):
-        """
-        Get selenium driver this external belongs to.
-        """
-        return getattr(self._wrapped, 'im_self', self._wrapped).parent
 
     @property
     def _context(self):
@@ -107,14 +113,7 @@ class ExternalObject(object):
         Get context for current External object
         @return: context manager
         """
-        return self.context_class(self._driver, self._frame_element, self._window_handle)
-
-
-class ExternalElement(ExternalObject):
-    """
-    Element wrapper which run __getattr__ commands inside ExternalContext manager, and decorates returned callable
-    objects.
-    """
+        return self.context_class(self._parent, self._frame_element, self._window_handle)
 
     def _wrap(self, o):
         """
@@ -123,23 +122,27 @@ class ExternalElement(ExternalObject):
         @param o: object to wrap
         @return: wrapped function
         """
-        if isinstance(o, ExternalObject):
+        if isinstance(o, ExternalElement):
             return o
+        elif isinstance(o, WebElement):
+            return self.__class__.from_webelement(o, self._frame_element, self._window_handle)
         elif callable(o):
             @functools.wraps(o)
             def wrapped(*args, **kwargs):
-                with self.context_class(self._driver, self._frame_element, self._window_handle):
+                with self._context:
                     return self._wrap(o(*args, **kwargs))
             return wrapped
-        elif isinstance(o, WebElement):
-            return self.__class__(o, self._frame_element, self._window_handle)
         elif not isinstance(o, (six.string_types, dict)) and hasattr(o, '__iter__'):
             return map(self._wrap, o)
         return o
 
-    def __getattr__(self, item):
-        with self._context:
-            return self._wrap(getattr(self._wrapped, item))
+    def __getattribute__(self, item):
+        if item  == '__class__' or item in self.__class__.__dict__:
+            # filter non-inherited attributes
+            return super(ExternalElement, self).__getattribute__(item)
+        # wrap inherited attributes
+        r = getattr(super(ExternalElement, self), item)
+        return self._wrap(r)
 
 
 def element_context(element):

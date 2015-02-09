@@ -19,18 +19,19 @@ import selenium.webdriver
 
 from six.moves import xrange
 
-from selenium.common.exceptions import NoSuchWindowException, NoSuchElementException, NoAlertPresentException,\
-                                       NoSuchAttributeException, UnexpectedTagNameException, NoSuchFrameException, \
-                                       WebDriverException, TimeoutException, InvalidSelectorException
+from selenium.common.exceptions import NoSuchWindowException, NoSuchElementException, NoSuchAttributeException, \
+    UnexpectedTagNameException, NoSuchFrameException, WebDriverException, TimeoutException, InvalidSelectorException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.alert import Alert
 
-from selenium_command import seleniumcommand, seleniumimperative, seleniumgeneric, selenium_multicommand_discover, NOT_PRESENT_EXCEPTIONS
+from selenium_command import seleniumcommand, seleniumimperative, seleniumgeneric, selenium_multicommand_discover, \
+    NOT_PRESENT_EXCEPTIONS
 from selenium_external import ExternalElement, ExternalContext, element_context, original_element
 
 logger = logging.getLogger(__name__)
+
 
 class SeleniumDriver(object):
     __metaclass__ = selenium_multicommand_discover
@@ -47,9 +48,9 @@ class SeleniumDriver(object):
     }
     _target_locators = {
         'identifier': lambda t, v:
-            ('xpath', v) if v.startswith('//') else
-                ('dom', v) if v.startswith('document.') else
-                    ('xpath', '//*[@id=\'%s\' or @name=\'%s\']' % (v, v)),
+        ('xpath', v) if v.startswith('//') else
+        ('dom', v) if v.startswith('document.') else
+        ('xpath', '//*[@id=\'%s\' or @name=\'%s\']' % (v, v)),
         'id': None,
         'name': None,
         'dom': None,
@@ -57,7 +58,7 @@ class SeleniumDriver(object):
         'link': ('xpath', '//a[normalize-space(text())=\'%(value)s\']'),
         'css': None,
         'ui': None,
-        }
+    }
     sleep = staticmethod(time.sleep)
 
     @property
@@ -72,7 +73,7 @@ class SeleniumDriver(object):
         self._timeout = int(timeout)
         self._num_retries = self._count_retries()
 
-        #self.driver.set_page_load_timeout(timeout) # not sure about this should or shouldn't be set
+        # self.driver.set_page_load_timeout(timeout) # not sure about this should or shouldn't be set
         self.driver.set_script_timeout(timeout)
 
     @property
@@ -90,22 +91,12 @@ class SeleniumDriver(object):
     def _deprecate_page(self):
         self.driver.execute_script('document._deprecated_by_selexe=true;')
 
-    def _wait_pageload(self):
+    def _wait_pageload(self, timeout=None):
         """
         Waits for document to get loaded. If document has frames, wait for them too.
         """
-        '''
-        # multiframe wait
-        script = (
-            'var chk=function(doc){return (doc.readyState===\'complete\')&&(!doc._deprecated_by_selexe);};
-            'for(var i=0, o; o=window.frames[i++];)'
-                'if(!chk(o.document))'
-                    'return false;'
-            'return chk(document);'
-        )
-        '''
         script = 'return (document.readyState===\'complete\')&&(!document._deprecated_by_selexe);'
-        for retry in self._retries():
+        for retry in self._retries(timeout=timeout):
             if self.driver.execute_script(script):
                 break
 
@@ -126,16 +117,37 @@ class SeleniumDriver(object):
         """
         Iterable that sleeps, poll and finally raises RuntimeError timeout if exhausted
 
+        @param timeout: timeout in milliseconds, defaults to default timeout
         @yields None before sleeping continuously until timeout
-        @raises RuntimeError if timeout is exhausted
+        @raises TimeoutException if timeout is exhausted
         """
         repeats = self._num_retries if timeout is None else self._count_retries(timeout=timeout)
         poll = self._poll / 1000.
         for i in xrange(repeats):
             yield i
             self.sleep(poll)
-        if timeout is None:
-            timeout = self._timeout
+        raise TimeoutException("Timed out after %d ms" % (self._timeout if timeout is None else timeout))
+
+    def _autotimeout(self, timeout=None):
+        """
+        Iterable that iterate until timeout gets exhausted. It's less efficient than _retries, but more accurate.
+
+        @param timeout: timeout in milliseconds, defaults to default timeout
+        @yields remaining timeout
+        @raises TimeoutException if timeout is exhausted
+        """
+        timeout = self._timeout if timeout is None else timeout
+        dest = time.time() + timeout/1000.
+        poll = self._poll / 1000.
+        ct = time.time()
+        while ct < dest:
+            yield int((dest-ct)*1000)
+            nt = time.time()
+            if nt-ct < poll:
+                self.sleep(poll-nt+ct)
+                ct += poll
+            else:
+                ct = nt
         raise TimeoutException("Timed out after %d ms" % timeout)
 
     @property
@@ -162,7 +174,7 @@ class SeleniumDriver(object):
         """
         self.baseuri = baseuri or ''
         self._verification_errors = []
-        self._importUserFunctions() # FIXME
+        self._importUserFunctions()  # FIXME
         self.timeout = timeout
         self.poll = poll
         self.custom_locators = {}
@@ -205,7 +217,7 @@ class SeleniumDriver(object):
             raise NotImplementedError('no proper function for sel command "%s" implemented' % command)
         return method(target, value, **kw)
 
-    def _importUserFunctions(self): # TODO: replace for flexibility
+    def _importUserFunctions(self):  # TODO: replace for flexibility
         """
         Import user functions from module userfunctions. 
         Each function in module userfunction (excluding the ones starting with "_") has to take 
@@ -214,8 +226,9 @@ class SeleniumDriver(object):
         """
         try:
             import userfunctions
+
             fncdict = {key: value for key, value in six.iteritems(userfunctions.__dict__)
-                               if not key.startswith("_") and callable(value)}
+                       if not key.startswith("_") and callable(value)}
             for funcName, fnc in six.iteritems(fncdict):
                 newBoundMethod = new.instancemethod(seleniumcommand(fnc), self, SeleniumDriver)
                 setattr(self, funcName, newBoundMethod)
@@ -227,6 +240,7 @@ class SeleniumDriver(object):
         return self.storedVariables.get(match.group(1), match.group(0))
 
     _sel_var_pat = re.compile(r'\${([\w\d]+)}')
+
     def _expandVariables(self, s):
         """
         Expand variables contained in selenese files.
@@ -262,21 +276,21 @@ class SeleniumDriver(object):
         """
         set_id_part = 'script.attributes.id=\'%s(id)s\';' if id else ''
         script = (
-            'var parent=document.getElementsByTagName(\'%(parent)s\')[0]||document,'
-                'script=document.createElement(\'script\'),'
-                'content=document.createTextNode(%(content)s);'
-            'script.attributes.type=\'text/javascript\';'
-            '%(set_id_part)s'
-            'script.appendChild(content);'
-            'parent.appendChild(script);'
-            ) % {
-            'parent': where,
-            'set_id_part': set_id_part,
-            'content': json.dumps(content),
-            }
+                     'var parent=document.getElementsByTagName(\'%(parent)s\')[0]||document,'
+                     'script=document.createElement(\'script\'),'
+                     'content=document.createTextNode(%(content)s);'
+                     'script.attributes.type=\'text/javascript\';'
+                     '%(set_id_part)s'
+                     'script.appendChild(content);'
+                     'parent.appendChild(script);'
+                 ) % {
+                     'parent': where,
+                     'set_id_part': set_id_part,
+                     'content': json.dumps(content),
+                 }
         self.driver.execute_script(script)
 
-    @seleniumcommand.nowait # 'open' has no AndWait variant
+    @seleniumcommand.nowait  # 'open' has no AndWait variant
     def open(self, target, value=None):
         """
         Open a URL in the browser and wait until the browser receives a new page
@@ -303,7 +317,7 @@ class SeleniumDriver(object):
         self._deprecate_page()
         self.driver.refresh()
         self._wait_pageload()
-        
+
     @seleniumimperative
     def click(self, target, value=None):
         """
@@ -313,7 +327,8 @@ class SeleniumDriver(object):
         """
         for retry in self._retries():
             try:
-                self._find_target(target, click=True).click()
+                target = self._find_target(target, click=True)
+                self._event(target, 'click')
                 break
             except NOT_PRESENT_EXCEPTIONS:
                 continue
@@ -331,7 +346,7 @@ class SeleniumDriver(object):
         Resize currently selected window to take up the entire screen
         """
         self.driver.maximize_window()
-    
+
     @seleniumcommand
     def select(self, target, value):
         """
@@ -423,6 +438,49 @@ class SeleniumDriver(object):
         if target_elem.is_selected():
             target_elem.click()
 
+    def _event(self, target, name):
+        """
+        Generate given event with webdriver
+
+        @param target: target element or locator
+        @param name: event name
+        """
+        element = self._find_target(target) if isinstance(target, six.string_types) else target
+        with element_context(element):
+            if name == 'blur':
+                self._event(element, 'focus')
+                body = self._find_target('css=body')
+                chain = ActionChains(self.driver)
+                chain.move_to_element(body)
+                chain.click(body)
+                chain.perform()
+            elif name == 'focus':
+                if element.tag_name == 'input':
+                    element.send_keys('')
+                else:
+                    chain = ActionChains(self.driver)
+                    chain.move_to_element(element)
+                    chain.perform()
+            elif name == 'mouseover':
+                chain = ActionChains(self.driver)
+                chain.move_to_element(element)
+                chain.perform()
+            elif name == 'mouseout':
+                body = self._find_target('css=body')
+                chain = ActionChains(self.driver)
+                chain.move_to_element(element)
+                chain.perform()
+                chain.move_to_element_with_offset(body, -1, -1)
+                chain.perform()
+            elif name == 'click':
+                chain = ActionChains(self.driver)
+                chain.move_to_element(element)
+                chain.click(element)
+                chain.perform()
+            else:
+                logger.exception('Event trigger for %r is not implemented yet, will be ignored.' % name)
+
+
     @seleniumimperative
     def mouseOver(self, target, value=None):
         """
@@ -430,9 +488,7 @@ class SeleniumDriver(object):
         @param target: an element locator
         @param value: <not used>
         """
-        target_elem = self._find_target(target)
-        # Action Chains will not work with several Firefox Versions. Firefox Version 10.2 should be ok.
-        ActionChains(self.driver).move_to_element(target_elem).perform()
+        self._event(target, 'mouseover')
 
     @seleniumcommand
     def fireEvent(self, target, value):
@@ -440,16 +496,7 @@ class SeleniumDriver(object):
         @param target: an element locator
         @param value: <not used>
         """
-        # TODO: Implement properly
-        # TODO: Chaining key, mouse and button events, perform on next non-chainable command or finish.
-        if (value == 'blur'):
-            target_elem = self._find_target(target)
-            rect = target_elem.rect
-            actions = ActionChains(self.driver)
-            actions.move_to_element(target_elem)
-            actions.move_by_offset(rect['x']+rect['width']+1, 0)
-            actions.click()
-            actions.perform()
+        self._event(target, value)
 
     @seleniumimperative
     def mouseOut(self, target, value=None):
@@ -458,13 +505,7 @@ class SeleniumDriver(object):
         @param target: an element locator
         @param value: <not used>
         """
-        target_elem = self._find_target(target)
-        body_elem = self._find_target('css=body')
-        actions = ActionChains(self.driver)
-        actions.move_to_element(target_elem)
-        actions.perform()
-        actions.move_to_element_with_offset(body_elem, -1, -1)
-        actions.perform()
+        self._event(target, 'mouseout')
 
     @seleniumcommand.nowait
     def waitForPopUp(self, target=None, value=None):
@@ -473,25 +514,29 @@ class SeleniumDriver(object):
         @param target: the JavaScript window "name" of the window that will appear (not the text of the title bar). If unspecified, or specified as 'null', this command will wait for the first non-top window to appear (don't rely on this if you are working with multiple popups simultaneously).
         @param value: a timeout in milliseconds, after which the action will return with an error. If this value is not specified, the default Selenium timeout will be used. See the setTimeout() command.
         """
-        current_window_handle = self.driver.current_window_handle
-        try:
-            if target in (None, '', 'null'):
+        timeout = None if value in (None, '', 'null') else int(value)
+        if target in (None, '', 'null'):
+            one = False
+            for timeout in self._autotimeout(timeout):
                 for handle in self.driver.window_handles:
-                    self.driver.switch_to.window(handle)
-                    if self._window_is_popup():
-                        self._wait_pageload()
-
-            for retry in self._retries(timeout=None if value in (None, '') else int(value)):
+                    with ExternalContext(self.driver, window_handle=handle):
+                        if self._window_is_popup():
+                            self._wait_pageload(timeout)
+                            one = True
+                if one:
+                    break
+        else:
+            current_window_handle = self.driver.current_window_handle
+            for timeout in self._autotimeout(timeout):
                 try:
                     self._selectWindow(target, mode='popup')
-                    self._find_target('xpath=/html')._id
+                    self._wait_pageload(timeout)
                     break
-                except WebDriverException:
-                    pass
-                except NOT_PRESENT_EXCEPTIONS:
-                    pass
-        finally:
-            self.driver.switch_to.window(current_window_handle)
+                except NoSuchWindowException:
+                    continue
+                finally:
+                    self.driver.switch_to.window(current_window_handle)
+
 
     @seleniumcommand
     def setTimeout(self, target, value=None):
@@ -513,7 +558,7 @@ class SeleniumDriver(object):
 
         @param target:  the number of milliseconds to pause after operation
         """
-        self.driver.implicitly_wait(int(target)/1000.)
+        self.driver.implicitly_wait(int(target) / 1000.)
 
     @seleniumimperative
     def deleteCookie(self, target=None, value=None):
@@ -540,15 +585,17 @@ class SeleniumDriver(object):
             elif value.startswith('recurse='):
                 recurse = True if value[8:] == 'true' else False
 
-        #TODO: check if this behavior is correct
-        cookies = self.driver.get_cookies() if target in (None, 'null', '', '*') else self.driver.get_cookies()(self.driver.get_cookie(target),)
+        # TODO: check if this behavior is correct
+        cookies = self.driver.get_cookies() if target in (None, 'null', '', '*') else self.driver.get_cookies()(
+            self.driver.get_cookie(target), )
         for cookie in cookies:
             samepath = True
             if path:
                 samepath = cookie.get('path', None) == path
             samedomain = True
             if domain:
-                samedomain = cookie['domain'].endswith(domain) if recurse and 'domain' in cookie else (cookie.get('domain', None) == domain)
+                samedomain = cookie['domain'].endswith(domain) if recurse and 'domain' in cookie else (
+                cookie.get('domain', None) == domain)
             if samepath and samedomain:
                 self.driver.delete_cookie(target)
 
@@ -583,8 +630,11 @@ class SeleniumDriver(object):
         current_window_handle = self.driver.current_window_handle
         for handle in self.driver.window_handles:
             self.driver.switch_to.window(handle)
-            if self.driver.find_element_by_xpath("/html/head/title").text == title:
-                return
+            try:
+                if self.driver.find_element_by_xpath("/html/head/title").text == title:
+                    return
+            except NoSuchElementException:
+                pass
         self.driver.switch_to.window(current_window_handle)
         raise NoSuchWindowException('Could not find window with title %s' % title)
 
@@ -597,8 +647,8 @@ class SeleniumDriver(object):
         @raises: NoSuchWindowException if not found
         """
         current_window_handle = self.driver.current_window_handle
-        json_handle = json.dumps(current_window_handle)
         attribute = '_selexe_window_selected_from'
+        json_handle = json.dumps(current_window_handle)
         # Mark window as requested by current window
         script = (
             'var w = eval(%(code)s);'
@@ -608,12 +658,15 @@ class SeleniumDriver(object):
             'attribute': attribute,
             'handle': json_handle,
             }
-        found = self.driver.execute_script(script)
+        try:
+            found = self.driver.execute_script(script)
+        except WebDriverException:
+            raise NoSuchWindowException('Could not find window with expression %s' % expression)
         # Search window marked by current window handle
         if found:
             for handle in self.driver.window_handles:
                 self.driver.switch_to.window(handle)
-                if self.driver.execute_script('return self.%s||null;' % attribute) == current_window_handle:
+                if self.driver.execute_script('return (self.%s||null)===%s;' % (attribute, json_handle)):
                     return
         self.driver.switch_to.window(current_window_handle)
         raise NoSuchWindowException('Could not find window with expression %s' % expression)
@@ -657,9 +710,8 @@ class SeleniumDriver(object):
         elif tag == 'title':
             self._selectWindowByTitle(value)
         elif value in current:
-            if mode =='window':
-                # select first window
-                self.driver.switch_to.window(self.driver.window_handles[0]) # some backends does not support 0 as param
+            if mode == 'window':
+                self.driver.switch_to.window(self.driver.window_handles[0])  # some backends does not support 0 as param
             elif mode == 'popup':
                 self._selectPopUp()
             else:
@@ -672,7 +724,10 @@ class SeleniumDriver(object):
                 except NoSuchWindowException as e:
                     pass
             else:
-                raise NoSuchWindowException('Could not find window with target %s' % value)
+                raise NoSuchWindowException('Could not find %s with target %s' % (mode, value))
+        # windows include popups, but popups don't include windows
+        if mode == 'popup' and not self._window_is_popup():
+            raise NoSuchWindowException('Could not find %s with target %s' % (mode, value))
 
     @seleniumcommand
     def selectWindow(self, target, value=None):
@@ -807,16 +862,12 @@ class SeleniumDriver(object):
     @seleniumimperative
     def keyDown(self, target, value=None):
         target_elm = self._find_target(target)
-        actions = ActionChains(self.driver)
-        actions.key_down(target_elm, value)
-        actions.perform()
+        self._chain.key_down(target_elm, value)
 
     @seleniumimperative
     def keyUp(self, target, value=None):
         target_elm = self._find_target(target)
-        actions = ActionChains(self.driver)
-        actions.key_up(target_elm, value)
-        actions.perform()
+        self._chain.key_up(target_elm, value)
 
     @seleniumimperative
     def metaKeyDown(self, target=None, value=None):
@@ -905,7 +956,8 @@ class SeleniumDriver(object):
 
         @param target: the amount of time to sleep (in milliseconds)
         """
-        time.sleep(target/1000.) # TODO: find a better way
+        milliseconds = (int(target) / 1000.) if target else self._timeout
+        time.sleep(milliseconds)  # TODO: find a better way
 
     @seleniumimperative
     def refresh(self, target=None, value=None):
@@ -996,7 +1048,6 @@ class SeleniumDriver(object):
             except InvalidSelectorException:
                 # Ignore if triggered by find_element_by_xpath('..') on parent nodes
                 if self.driver.find_element_by_xpath('/%s' % element.tag_name)._id != element._id:
-                    import ipdb; ipdb.set_trace()
                     raise
             hierarchy.append(element.tag_name)
         hierarchy.reverse()
@@ -1129,7 +1180,7 @@ class SeleniumDriver(object):
         @param value: variable name
         @return the value of the specified attribute
         """
-        reset = ['document'] # ensure consistent behavior
+        reset = ['document']  # ensure consistent behavior
         js = (
             'var %(reset)s,'
                 'storedVars=%(variables)s,'
@@ -1236,6 +1287,7 @@ class SeleniumDriver(object):
         return value, cell.text.strip()
 
     _tag_value_re = re.compile(r'(?P<tag>[a-zA-Z0-9_]+)=(?P<value>.*)')
+
     @classmethod
     def _tag_and_value(cls, target, locators=None, default=None):
         """
@@ -1269,7 +1321,7 @@ class SeleniumDriver(object):
             raise UnexpectedTagNameException('invalid locator format "%s"' % tag)
 
         if not isinstance(locators, dict):
-           return tag, value
+            return tag, value
 
         if locators[tag] is None:
             return tag, value
@@ -1296,7 +1348,7 @@ class SeleniumDriver(object):
 
         tag, value = self._tag_and_value(target, locators=locators, default='identifier')
         if tag == 'ui':
-            raise NotImplementedError('ui locators are not implemented yet') # TODO: implement
+            raise NotImplementedError('ui locators are not implemented yet')  # TODO: implement
         elif tag == 'css':
             find_one = functools.partial(self.driver.find_element_by_css_selector, value)
             find_many = functools.partial(self.driver.find_elements_by_css_selector, value)
@@ -1326,7 +1378,7 @@ class SeleniumDriver(object):
         for iframe in self.driver.find_elements_by_tag_name('iframe'):
             with ExternalContext(self.driver, iframe):
                 try:
-                    return ExternalElement(self._find_target(target), iframe)
+                    return ExternalElement.from_webelement(self._find_target(target), iframe)
                 except NOT_PRESENT_EXCEPTIONS:
                     pass
 
@@ -1334,6 +1386,7 @@ class SeleniumDriver(object):
         raise NoSuchElementException('Element with %r not found.' % value)
 
     _simplify_spaces = re.compile(r'\n\s+')
+
     @classmethod
     def _matches(cls, expectedResult, result):
         """
@@ -1348,7 +1401,7 @@ class SeleniumDriver(object):
         @param result: the actual result of a selenese command
         @return true if matches, false otherwise
         """
-        if not isinstance(expectedResult, six.string_types): # equality for booleans, integers, etc
+        if not isinstance(expectedResult, six.string_types):  # equality for booleans, integers, etc
             return expectedResult == result
         # Normalize line separators
         expectedResult = cls._simplify_spaces.sub('\n ', expectedResult)
@@ -1382,7 +1435,7 @@ If no pattern prefix is specified, Selenium assumes that it's a "glob" pattern.
             # exact means no-wildcard, not regexp's line match
             repat = re.compile(re.escape(pat[6:]))
         else:
-            if pat.startswith("glob:"): # glob and wildcards
+            if pat.startswith("glob:"):  # glob and wildcards
                 pat = pat[5:]
             repat = cls._translateWilcardToRegex(pat)
         return repat
@@ -1391,6 +1444,7 @@ If no pattern prefix is specified, Selenium assumes that it's a "glob" pattern.
         re.compile(r"(?<!\\)\\\*"): r".*",
         re.compile(r"(?<!\\)\\\?"): r".",
     }
+
     @classmethod
     def _translateWilcardToRegex(cls, wc):
         """
