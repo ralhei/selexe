@@ -20,7 +20,7 @@ class SeleniumTestCaseParser(object):
     def __init__(self, path, data):
         self.path = path
         assert isinstance(data, six.text_type), '%r is required' % six.text_type
-        self.soup = beautifulsoup.BeautifulSoup(data)
+        self.soup = beautifulsoup.BeautifulSoup(data, 'html.parser')
         baseuri = self.soup.find('link', attrs={'rel': 'selenium.base'})
         self.baseuri = baseuri['href'].rstrip('/') if baseuri else None
 

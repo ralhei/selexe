@@ -162,7 +162,8 @@ def main(argv=None):
     failed = 0
     for path in args.paths:
         for driver in args.drivers:
-            runner =  selexe_runner.SelexeRunner(path, baseuri=args.baseuri, pmd=args.pmd, fixtures=args.fixtures, timeit=args.timeit, driver=driver)
+            runner = selexe_runner.SelexeRunner(path, baseuri=args.baseuri, pmd=args.pmd, fixtures=args.fixtures,
+                                                timeit=args.timeit, driver=driver)
             errors = runner.run()
             if errors:
                 failed += 1

@@ -127,7 +127,7 @@ class SelexeRunner(object):
                 logger.error('Command %s(%r, %r) failed on \'%s\'.' % (command, target, value, sd.driver.current_url))
                 raise
         return sd.verification_errors
-        
+
     @staticmethod
     def findFixtureFunctions(modulePath=None):
         """

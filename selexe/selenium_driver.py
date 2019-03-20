@@ -389,11 +389,11 @@ class SeleniumDriver(object):
         """
         Time until a waitFor command will time out in milliseconds.
         """
-        self._timeout = int(timeout)
+        self._timeout = int(timeout / 1000.)
         self._num_retries = self._count_retries()
 
         #self.driver.set_page_load_timeout(timeout) # not sure about this should or shouldn't be set
-        self.driver.set_script_timeout(timeout)
+        self.driver.set_script_timeout(self._timeout)
 
     @property
     def poll(self):
@@ -521,10 +521,10 @@ class SeleniumDriver(object):
 
     def _importUserFunctions(self): # TODO: replace for flexibility
         """
-        Import user functions from module userfunctions. 
-        Each function in module userfunction (excluding the ones starting with "_") has to take 
-        3 arguments: SeleniumDriver instance, target string, value string. Wrap these function 
-        by the decorator function "seleniumcommand" and add them as bound methods. 
+        Import user functions from module userfunctions.
+        Each function in module userfunction (excluding the ones starting with "_") has to take
+        3 arguments: SeleniumDriver instance, target string, value string. Wrap these function
+        by the decorator function "seleniumcommand" and add them as bound methods.
         """
         try:
             import userfunctions
@@ -607,7 +607,7 @@ class SeleniumDriver(object):
         self._deprecate_page()
         self.driver.refresh()
         self._wait_pageload()
-        
+
     @seleniumimperative
     def click(self, target, value=None):
         """
@@ -621,7 +621,7 @@ class SeleniumDriver(object):
                 break
             except NoSuchElementException:
                 continue
-    
+
     @seleniumcommand
     def select(self, target, value):
         """
@@ -1497,7 +1497,7 @@ class SeleniumDriver(object):
         2) exact: a non-wildcard expressions
         3) regexp: a regular expression
         4) glob: a (possible) wildcard expression. This is the default (fallback) method if 1), 2) and 3) don't apply
-        see: http://release.seleniumhq.org/selenium-remote-control/0.9.2/doc/dotnet/Selenium.html    
+        see: http://release.seleniumhq.org/selenium-remote-control/0.9.2/doc/dotnet/Selenium.html
         @param expectedResult: the expected result of a selenese command
         @param result: the actual result of a selenese command
         @return true if matches, false otherwise
