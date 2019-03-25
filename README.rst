@@ -32,7 +32,7 @@ Once in virtualenv, you can install selexe directly from this git repository usi
 
 .. code:: sh
 
-    pip install git+https://github.com/ralhei/selexe.git
+    pip install git+https://github.com/qdqmedia/selexe.git
 
 Usage
 -----

@@ -16,14 +16,14 @@ def putRest(self, target, value):
             contentType: 'application/json', async: false, type: 'put'});
     };
     """
-    connection = _connect(self.base_url)
+    connection = _connect(self.baseuri)
     headers = {"Content-type": 'application/json'}
     connection.request('PUT', target, value, headers)
     assert connection.getresponse().status == 200
 
 
 def postRest(self, target, value):
-    connection = _connect(self.base_url)
+    connection = _connect(self.baseuri)
     headers = {"Content-type": 'application/json'}
     connection.request('POST', target, value, headers)
     assert connection.getresponse().status == 200
@@ -36,7 +36,7 @@ def deleteRest(self, target, value):
         type: 'delete'});
     };
     """
-    connection = _connect(self.base_url)
+    connection = _connect(self.baseuri)
     connection.request('DELETE', target)
     assert connection.getresponse().status == 200
      
@@ -56,7 +56,7 @@ def assertGetRest(self, target, value):
         };
     };    
     """
-    connection = _connect(self.base_url)
+    connection = _connect(self.baseuri)
     connection.request('GET', target)
     response = connection.getresponse()
     assert response.status == 200
