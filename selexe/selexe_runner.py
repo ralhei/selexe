@@ -124,7 +124,7 @@ class SelexeRunner(object):
 
         try:
             return self._executeSelenium(seleniumParser, sd)
-        except BaseException as e:
+        except:  # noqa
             if self.error_screenshot_dir:
                 path = os.path.join(self.error_screenshot_dir, time.strftime('%Y%m%d.%H%M%S.png'))
                 sd.save_screenshot(path)
@@ -152,11 +152,11 @@ class SelexeRunner(object):
                 sd.baseuri = baseuri
             try:
                 if self.timeit:
-                    time = timeit.timeit(functools.partial(sd, command, target, value), number=1)
-                    logger.info("Executed in %f sec" % time)
+                    numsec = timeit.timeit(functools.partial(sd, command, target, value), number=1)
+                    logger.info("Executed in %f sec" % numsec)
                 else:
                     sd(command, target, value)
-            except:
+            except:   # noqa
                 logger.error('Command %s(%r, %r) failed on \'%s\'.' % (command, target, value, sd.driver.current_url))
                 raise
         return sd.verification_errors
