@@ -10,7 +10,6 @@ import logging
 import time
 import re
 import math
-import new
 import json
 import six
 import functools
@@ -26,15 +25,14 @@ from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.alert import Alert
 
-from selenium_command import seleniumcommand, seleniumimperative, seleniumgeneric, selenium_multicommand_discover, \
+from .selenium_command import seleniumcommand, seleniumimperative, seleniumgeneric, selenium_multicommand_discover, \
     NOT_PRESENT_EXCEPTIONS
-from selenium_external import ExternalElement, ExternalContext, element_context, original_element
+from .selenium_external import ExternalElement, ExternalContext, element_context, original_element
 
 logger = logging.getLogger(__name__)
 
 
-class SeleniumDriver(object):
-    __metaclass__ = selenium_multicommand_discover
+class SeleniumDriver(metaclass=selenium_multicommand_discover):
 
     _timeout = 1
     _poll = 1
@@ -219,19 +217,19 @@ class SeleniumDriver(object):
 
     def _importUserFunctions(self):  # TODO: replace for flexibility
         """
-        Import user functions from module userfunctions. 
-        Each function in module userfunction (excluding the ones starting with "_") has to take 
-        3 arguments: SeleniumDriver instance, target string, value string. Wrap these function 
-        by the decorator function "seleniumcommand" and add them as bound methods. 
+        Import user functions from module userfunctions.
+        Each function in module userfunction (excluding the ones starting with "_") has to take
+        3 arguments: SeleniumDriver instance, target string, value string. Wrap these function
+        by the decorator function "seleniumcommand" and add them as bound methods.
         """
         try:
-            import userfunctions
+            from selexe import userfunctions
 
             fncdict = {key: value for key, value in six.iteritems(userfunctions.__dict__)
                        if not key.startswith("_") and callable(value)}
             for funcName, fnc in six.iteritems(fncdict):
-                newBoundMethod = new.instancemethod(seleniumcommand(fnc), self, SeleniumDriver)
-                setattr(self, funcName, newBoundMethod)
+                # newBoundMethod = new.instancemethod(seleniumcommand(fnc), self, SeleniumDriver)
+                setattr(self, funcName, seleniumcommand(fnc))
             logger.info("User functions: %s" % ", ".join(fncdict))
         except ImportError:
             logger.info("Using no user functions")
@@ -642,7 +640,7 @@ class SeleniumDriver(object):
         """
         Switch to window with given javascript expression
 
-        @param title: str
+        @param expression: str
         @return: handle of the window
         @raises: NoSuchWindowException if not found
         """
@@ -984,7 +982,7 @@ class SeleniumDriver(object):
 
         @param target: the id of the script element to remove.
         """
-        logger.warn('This command does nothing as works along with with `addScript` which is unsupported.')
+        logger.warning('This command does nothing as works along with with `addScript` which is unsupported.')
 
     @seleniumimperative
     def removeSelection(self, target, value):
@@ -1087,7 +1085,7 @@ class SeleniumDriver(object):
         with element_context(element):
             source = self.driver.page_source
 
-        return beautifulsoup.BeautifulSoup(source).select(css)[0]
+        return beautifulsoup.BeautifulSoup(source, "html.parser").select(css)[0]
 
     @seleniumgeneric
     def TextPresent(self, target, value=None):
@@ -1097,7 +1095,7 @@ class SeleniumDriver(object):
         @param value: <not used>
         @return true if the pattern matches the text, false otherwise
         """
-        doc = beautifulsoup.BeautifulSoup(self.driver.page_source).body
+        doc = beautifulsoup.BeautifulSoup(self.driver.page_source, "html.parser").body
         for result in doc.findAll(text=self._translatePatternToRegex(target)):
             if self._element_from_soup(result).is_displayed():
                 return True, True
@@ -1395,7 +1393,7 @@ class SeleniumDriver(object):
         2) exact: a non-wildcard expressions
         3) regexp: a regular expression
         4) glob: a (possible) wildcard expression. This is the default (fallback) method if 1), 2) and 3) don't apply
-        see: http://release.seleniumhq.org/selenium-remote-control/0.9.2/doc/dotnet/Selenium.html    
+        see: http://release.seleniumhq.org/selenium-remote-control/0.9.2/doc/dotnet/Selenium.html
         @param expectedResult: the expected result of a selenese command
         @param result: the actual result of a selenese command
         @return true if matches, false otherwise

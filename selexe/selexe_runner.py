@@ -12,8 +12,8 @@ import six
 from selenium import webdriver
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 
-from parse_sel import SeleniumParser
-from selenium_driver import SeleniumDriver
+from .parse_sel import SeleniumParser
+from .selenium_driver import SeleniumDriver
 
 logger = logging.getLogger(__name__)
 
@@ -130,11 +130,12 @@ class SelexeRunner(object):
                 sd.save_screenshot(path)
                 logger.error('Screenshot saved to %s' % path)
             if self.pmd:
+                tb = sys.exc_info()[2]
                 try:
                     import ipdb as pdb
                 except ImportError:
                     import pdb
-                pdb.post_mortem(e)
+                pdb.post_mortem(tb)
             else:
                 raise
         finally:
@@ -152,7 +153,7 @@ class SelexeRunner(object):
             try:
                 if self.timeit:
                     time = timeit.timeit(functools.partial(sd, command, target, value), number=1)
-                    logger.info("Executed in %f sec" % (time))
+                    logger.info("Executed in %f sec" % time)
                 else:
                     sd(command, target, value)
             except:
@@ -181,7 +182,7 @@ class SelexeRunner(object):
         if isinstance(modulePath, six.string_types):
             directory, filename = os.path.split(os.path.realpath(modulePath))
             modulename, extension = os.path.splitext(filename)
-            if directory and not directory in sys.path:
+            if directory and directory not in sys.path:
                 sys.path.append(directory)
             module = __import__(modulename)
             setUpFunc = getattr(module, 'setUp', None)
@@ -191,11 +192,12 @@ class SelexeRunner(object):
                             (modulePath, setUpFunc is not None, tearDownFunc is not None))
             else:
                 logger.warning('Successfully imported fixtures module %s, but found no setUp or tearDown functions' %
-                                modulePath)
+                               modulePath)
             return setUpFunc, tearDownFunc
 
         # Nothing
         logger.info('Using no fixtures')
         return None, None
 
-findFixtureFunctions = SelexeRunner.findFixtureFunctions # backwards compatibility
+
+findFixtureFunctions = SelexeRunner.findFixtureFunctions  # backwards compatibility

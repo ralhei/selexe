@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 NOT_PRESENT_EXCEPTIONS = (NoSuchElementException, NoAlertPresentException, StaleElementReferenceException)
 
+
 class SeleniumCommandType(object):
     __slots__ = ('fnc', 'name', 'docstring', 'defaults', 'wait_for_page', '_original_name')
 
@@ -28,9 +29,10 @@ class SeleniumCommandType(object):
 
     def __init__(self, fnc):
         self.fnc = fnc
-        self.name = getattr(fnc, 'fnc_name', None) or getattr(fnc, '__name__', None) or getattr(fnc.__class__, '__name__')
+        self.name = getattr(fnc, 'fnc_name', None) or getattr(fnc, '__name__', None) \
+            or getattr(fnc.__class__, '__name__')
         self.docstring = getattr(fnc, '__doc__', None) or ''
-        self.defaults = {} # default kwargs parsed command
+        self.defaults = {}  # default kwargs parsed command
         self.wait_for_page = True # wait for ongoing page load before running
         self._original_name = self.name
 
@@ -69,6 +71,7 @@ class seleniumcommand(SeleniumCommandType):
 
     def __new__(cls, fnc):
         self = fnc if isinstance(fnc, cls.command_class) else cls.command_class(fnc)
+
         def wrapped(driver, target=None, value=None):
             """
             @type driver: SeleniumDriver
@@ -79,6 +82,7 @@ class seleniumcommand(SeleniumCommandType):
                 driver._wait_pageload()
             logger.info('%s(%r, %r)' % (self.name, target, value))
             return self.fnc(driver, v_target, v_value, **self.defaults)
+
         wrapped.command = self
         wrapped.__name__ = self.name
         wrapped.__doc__ = self.docstring
@@ -117,7 +121,7 @@ class SeleniumMultiCommandType(SeleniumCommandType):
             dct = clsobj.__dict__
         elif isinstance(clsobj_or_name, six.string_types) and isinstance(dct, dict):
             # called as metaclass (ideally)
-            clsobj = None # not created yet
+            clsobj = None  # not created yet
             name = clsobj_or_name
         else:
             # uncaught class
@@ -145,7 +149,6 @@ class SeleniumMultiCommandType(SeleniumCommandType):
         Look for suffixes and prefixes in given proto-command name and completes docstring.
 
         @param name: proto-command name
-        @param docstring: proto-command's original docstring
         @param inverse: True if command modifier means negation, False otherwise (default)
         @return completed docstring
         """

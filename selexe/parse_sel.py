@@ -5,14 +5,14 @@ import logging
 import io
 import six
 import bs4 as beautifulsoup
-import htmlentitydefs
+import html
 
 logger = logging.getLogger(__name__)
 
 
 class SeleniumTestCaseParser(object):
     __slots__ = ('path', 'soup', 'baseuri')
-    htmlentity_map = htmlentitydefs.name2codepoint
+    htmlentity_map = html.entities.name2codepoint
     htmlentity_compiled_re = re.compile('&(%s);' % '|'.join(htmlentity_map))
     br_compiled_re = re.compile(r"<br\s*/?>")
     tag_compiled_re = re.compile("<.*>")
@@ -46,7 +46,7 @@ class SeleniumTestCaseParser(object):
 
     @classmethod
     def _htmlentity_translate_handler(cls, match):
-        return unichr(cls.htmlentity_map[match.group(1)])
+        return chr(cls.htmlentity_map[match.group(1)])
 
     @classmethod
     def htmlentity_translate(cls, s):
@@ -81,6 +81,7 @@ class SeleniumTestCaseParser(object):
 
 class SeleniumTestSuiteParser(SeleniumTestCaseParser):
     testcase_class = SeleniumTestCaseParser
+
     def iter_search_directories(self):
         yield os.getcwd()
         if self.path:
@@ -122,5 +123,6 @@ class SeleniumParser(SeleniumTestCaseParser):
             return cls.testsuite_class(path, data)
         return cls.testcase_class(path, data)
 
-htmlentitydecode = SeleniumTestCaseParser.htmlentity_translate # compatibility
-handleTags = SeleniumTestCaseParser.handle_tags # compatibility
+
+htmlentitydecode = SeleniumTestCaseParser.htmlentity_translate  # compatibility
+handleTags = SeleniumTestCaseParser.handle_tags  # compatibility
