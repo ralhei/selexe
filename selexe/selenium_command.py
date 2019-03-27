@@ -9,6 +9,25 @@ logger = logging.getLogger(__name__)
 NOT_PRESENT_EXCEPTIONS = (NoSuchElementException, NoAlertPresentException, StaleElementReferenceException)
 
 
+def selenium_multicommand_discover(klass):
+    """
+    Class-decorator which looks for seleniumgeneric instances in attributes and
+    generate proper related selenium command methods.
+
+    :param: klass: class that is decorated, most likely SeleniumDriver
+    :returns: given class
+    """
+    dct = klass.__dict__
+    genericattrs = [(key, value) for key, value in dct.items() if isinstance(value, SeleniumMultiCommandType)]
+    relatedattrs = [(fnc.__name__, fnc) for key, value in genericattrs for fnc in value.related_commands()]
+
+    for key, value in genericattrs:
+        delattr(klass, key)
+    for key, value in relatedattrs:
+        setattr(klass, key, value)
+    return klass
+
+
 class SeleniumCommandType(object):
     __slots__ = ('fnc', 'name', 'docstring', 'defaults', 'wait_for_page', '_original_name')
 
@@ -76,8 +95,8 @@ class seleniumcommand(SeleniumCommandType):
             """
             @type driver: SeleniumDriver
             """
-            v_target = driver._expandVariables(target) if target else target
-            v_value  = driver._expandVariables(value) if value else value
+            v_target = target  # driver._expandVariables(target) if target else target
+            v_value  = value   # driver._expandVariables(value) if value else value
             if self.wait_for_page:
                 driver._wait_pageload()
             logger.info('%s(%r, %r)' % (self.name, target, value))
@@ -101,48 +120,6 @@ class SeleniumMultiCommandType(SeleniumCommandType):
     prefix_docstring = {}
     suffix_docstring = {}
     contains_docstring = {}
-
-    @classmethod
-    def discover(cls, clsobj_or_name, bases=(), dct=None):
-        """
-        Class-decorator (can also be used as  metaclass) which looks for seleniumgeneric instances in attributes and
-        generate proper related selenium command methods.
-
-        @param clsobj_or_name: class, or class name as str if invoked as metaclass
-        @param bases: tuple of class bases if invoked as metaclass
-        @param dct: attribute dictionary if invoked as metaclass
-        @return given class, or created class if invoked as metaclass
-        """
-        if isinstance(clsobj_or_name, type):
-            # called as class decorator
-            clsobj = clsobj_or_name
-            name = clsobj.__name__
-            bases = clsobj.__bases__
-            dct = clsobj.__dict__
-        elif isinstance(clsobj_or_name, six.string_types) and isinstance(dct, dict):
-            # called as metaclass (ideally)
-            clsobj = None  # not created yet
-            name = clsobj_or_name
-        else:
-            # uncaught class
-            raise RuntimeError('discover can be used only for decorating classes or as __metaclass__')
-
-        genericattrs = [(key, value) for key, value in six.iteritems(dct) if isinstance(value, cls)]
-        relatedattrs = [(fnc.__name__, fnc) for key, value in genericattrs for fnc in value.related_commands()]
-
-        # if clsobj is available, we need to update it directly as __dict__ can be read-only
-        if clsobj:
-            for key, value in genericattrs:
-                delattr(key)
-            for key, value in relatedattrs:
-                setattr(key, value)
-            return clsobj
-
-        # if we have not clsobj, update new methods and create class
-        for key, value in genericattrs:
-            del dct[key]
-        dct.update(relatedattrs)
-        return type.__new__(type, name, bases, dct)
 
     def _docstring(self, name, inverse=False):
         """
@@ -329,6 +306,3 @@ class seleniumgeneric(SeleniumMultiCommandType):
 
         if self.name == 'Expression':
             yield self._wrapper('store', self._store)
-
-
-selenium_multicommand_discover = SeleniumMultiCommandType.discover

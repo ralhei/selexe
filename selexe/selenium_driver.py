@@ -30,7 +30,8 @@ from .selenium_external import ExternalElement, ExternalContext, element_context
 logger = logging.getLogger(__name__)
 
 
-class SeleniumDriver(metaclass=selenium_multicommand_discover):
+@selenium_multicommand_discover
+class SeleniumDriver:
 
     _timeout = 1
     _poll = 1
@@ -211,7 +212,11 @@ class SeleniumDriver(metaclass=selenium_multicommand_discover):
             method = getattr(self, command)
         except AttributeError:
             raise NotImplementedError('no proper function for sel command "%s" implemented' % command)
-        return method(target, value, **kw)
+
+        v_target = self._expandVariables(target) if target else target
+        v_value = self._expandVariables(value) if value else value
+
+        return method(v_target, v_value, **kw)
 
     def _importUserFunctions(self):  # TODO: replace for flexibility
         """
