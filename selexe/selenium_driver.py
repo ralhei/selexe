@@ -36,7 +36,7 @@ class SeleniumDriver:
     _timeout = 1
     _poll = 1
     _num_retries = 1
-    _verification_errors = ()
+    verification_errors = ()
     _by_target_locators = {
         'css': By.CSS_SELECTOR,
         'id': By.ID,
@@ -85,15 +85,15 @@ class SeleniumDriver:
         self._poll = int(poll)
         self._num_retries = self._count_retries()
 
-    def _deprecate_page(self):
+    def deprecate_page(self):
         self.driver.execute_script('document._deprecated_by_selexe=true;')
 
-    def _wait_pageload(self, timeout=None):
+    def wait_pageload(self, timeout=None):
         """
         Waits for document to get loaded. If document has frames, wait for them too.
         """
         script = 'return (document.readyState===\'complete\')&&(!document._deprecated_by_selexe);'
-        for _ in self._retries(timeout=timeout):
+        for _ in self.retries(timeout=timeout):
             if self.driver.execute_script(script):
                 break
 
@@ -110,7 +110,7 @@ class SeleniumDriver:
             poll = self._poll
         return int(math.ceil(float(timeout) / poll))
 
-    def _retries(self, timeout=None):
+    def retries(self, timeout=None):
         """
         Iterable that sleeps, poll and finally raises RuntimeError timeout if exhausted
 
@@ -147,14 +147,14 @@ class SeleniumDriver:
                 ct = nt
         raise TimeoutException("Timed out after %d ms" % timeout)
 
-    @property
-    def verification_errors(self):
-        """
-        List of verification errors
-
-        :return: safe copy if internal verification error list
-        """
-        return list(self._verification_errors)
+    # @property
+    # def verification_errors(self):
+    #     """
+    #     List of verification errors
+    #
+    #     :return: safe copy if internal verification error list
+    #     """
+    #     return list(self._verification_errors)
 
     def __init__(self, driver, baseuri=None, timeout=30000, poll=100):
         """
@@ -170,7 +170,7 @@ class SeleniumDriver:
         @type : selenium.webdriver.Remote
         """
         self.baseuri = baseuri or ''
-        self._verification_errors = []
+        self.verification_errors = []
         self._importUserFunctions()  # FIXME
         self.timeout = timeout
         self.poll = poll
@@ -182,7 +182,7 @@ class SeleniumDriver:
         """
         Clean verification errors
         """
-        del self._verification_errors[:]
+        del self.verification_errors[:]
 
     def save_screenshot(self, path):
         """
@@ -256,14 +256,14 @@ class SeleniumDriver:
     def _matchOptionText(self, target, tvalue):
         for option in target.find_elements_by_xpath("*"):
             text = option.text
-            if self._matches(tvalue, text):
+            if self.matches(tvalue, text):
                 return text
         return tvalue
 
     def _matchOptionValue(self, target, tvalue):
         for option in target.find_elements_by_xpath("*"):
             value = option.get_attribute("value")
-            if self._matches(tvalue, value):
+            if self.matches(tvalue, value):
                 return value
         return tvalue
 
@@ -305,9 +305,9 @@ class SeleniumDriver:
                 target = '%s%s' % (self.baseuri, target)
             else:
                 target = '%s/%s' % (self.driver.current_url.rstrip('/'), target.lstrip('/'))
-        self._deprecate_page()
+        self.deprecate_page()
         self.driver.get(target)
-        self._wait_pageload()
+        self.wait_pageload()
 
     @seleniumimperative.nowait
     def refresh(self, target=None, value=None):   # noqa
@@ -315,9 +315,9 @@ class SeleniumDriver:
         Simulates the user clicking the "Refresh" button on their browser.
         """
         # NOTE: this used to be done by seleniumcommand, but can be loaded with the same url so we need this
-        self._deprecate_page()
+        self.deprecate_page()
         self.driver.refresh()
-        self._wait_pageload()
+        self.wait_pageload()
 
     @seleniumimperative
     def click(self, target, value=None):  # noqa
@@ -326,7 +326,7 @@ class SeleniumDriver:
         @param target: a string determining an element in the HTML page
         @param value:  <not used>
         """
-        for _ in self._retries():
+        for _ in self.retries():
             try:
                 target = self._find_target(target, click=True)
                 self._event(target, 'click')
@@ -404,7 +404,7 @@ class SeleniumDriver:
         """
         Wait until page changes
         """
-        self._wait_pageload()
+        self.wait_pageload()
 
     @seleniumcommand
     def type(self, target, value):
@@ -524,7 +524,7 @@ class SeleniumDriver:
                 for handle in self.driver.window_handles:
                     with ExternalContext(self.driver, window_handle=handle):
                         if self._window_is_popup():
-                            self._wait_pageload(timeout)
+                            self.wait_pageload(timeout)
                             one = True
                 if one:
                     break
@@ -533,7 +533,7 @@ class SeleniumDriver:
             for timeout in self._autotimeout(timeout):
                 try:
                     self._selectWindow(target, mode='popup')
-                    self._wait_pageload(timeout)
+                    self.wait_pageload(timeout)
                     break
                 except NoSuchWindowException:
                     continue
@@ -1420,7 +1420,7 @@ class SeleniumDriver:
     _simplify_spaces = re.compile(r'\n\s+')
 
     @classmethod
-    def _matches(cls, expectedResult, result):
+    def matches(cls, expectedResult, result):
         """
         Try to match a result of a selenese command with its expected result.
         The function performs a plain equality comparison for non-Strings and handles all three kinds of String-match

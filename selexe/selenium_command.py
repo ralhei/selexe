@@ -28,7 +28,7 @@ def selenium_multicommand_discover(klass):
     return klass
 
 
-class SeleniumCommandType(object):
+class SeleniumCommand(object):
     __slots__ = ('fnc', 'name', 'docstring', 'defaults', 'wait_for_page', '_original_name')
 
     @classmethod
@@ -52,7 +52,7 @@ class SeleniumCommandType(object):
             or getattr(fnc.__class__, '__name__')
         self.docstring = getattr(fnc, '__doc__', None) or ''
         self.defaults = {}  # default kwargs parsed command
-        self.wait_for_page = True # wait for ongoing page load before running
+        self.wait_for_page = True  # wait for ongoing page load before running
         self._original_name = self.name
 
     def __eq__(self, other):
@@ -68,7 +68,7 @@ class SeleniumCommandType(object):
         return '<%s wrapping %s%s>' % (self.__class__.__name__, self.fnc, extra)
 
 
-class seleniumcommand(SeleniumCommandType):
+class seleniumcommand(SeleniumCommand):
     """
     Decorator can be used to encapsulate selenium command functions (or `command_class` instances) in order to expand
     parameters with values in storedVariables dictionary and wait for page changes when necessary.
@@ -80,35 +80,33 @@ class seleniumcommand(SeleniumCommandType):
     This decorator returns a function with signature `(driver_instance, target=None, value=None)`, with the related
     `command_class` instance assigned to `command` function attribute.
     """
-    command_class = SeleniumCommandType
-
     @classmethod
     def nowait(cls, fnc):
-        command = cls.command_class(fnc)
+        command = SeleniumCommand(fnc)
         command.wait_for_page = False
         return cls(command)
 
     def __new__(cls, fnc):
-        self = fnc if isinstance(fnc, cls.command_class) else cls.command_class(fnc)
+        sel_cmd = fnc if isinstance(fnc, SeleniumCommand) else SeleniumCommand(fnc)
 
         def wrapped(driver, target=None, value=None):
             """
             @type driver: SeleniumDriver
             """
             v_target = target  # driver._expandVariables(target) if target else target
-            v_value  = value   # driver._expandVariables(value) if value else value
-            if self.wait_for_page:
-                driver._wait_pageload()
-            logger.info('%s(%r, %r)' % (self.name, target, value))
-            return self.fnc(driver, v_target, v_value, **self.defaults)
+            v_value = value   # driver._expandVariables(value) if value else value
+            if sel_cmd.wait_for_page:
+                driver.wait_pageload()
+            logger.info('%s(%r, %r)' % (sel_cmd.name, target, value))
+            return sel_cmd.fnc(driver, v_target, v_value, **sel_cmd.defaults)
 
-        wrapped.command = self
-        wrapped.__name__ = self.name
-        wrapped.__doc__ = self.docstring
+        wrapped.command = sel_cmd
+        wrapped.__name__ = sel_cmd.name
+        wrapped.__doc__ = sel_cmd.docstring
         return wrapped
 
 
-class SeleniumMultiCommandType(SeleniumCommandType):
+class SeleniumMultiCommandType(SeleniumCommand):
     """
     Object that encapsulates a generic selenium command (those prefixed by 'get' and 'is' in Selenium prototype),
     includes a classmethod `discover` which puts all related methods in class given as parameter and can be used
@@ -116,7 +114,6 @@ class SeleniumMultiCommandType(SeleniumCommandType):
 
     It's intended for decorating proto-command methods that spawns multiple Selenium core commands.
     """
-    command_decorator = seleniumcommand
     prefix_docstring = {}
     suffix_docstring = {}
     contains_docstring = {}
@@ -144,21 +141,21 @@ class SeleniumMultiCommandType(SeleniumCommandType):
 
     def _wrapper(self, name, fnc=None, waitDefault=None, **kw):
         """
-        Apply `command_decorator` attribute to given callable
+        Apply `seleniumcommand` attribute to given callable
 
         @param name: final command name
         @param fnc: wrapped proto-command
         @param waitDefault: True if command should wait for ongoing loads before executing, False otherwise (default)
         @param inverse: True if callable involves negation of original proto-command, False otherwise (default)
         @param **kw: extra keyword arguments will be forwarded to given function
-        @return command_decorated function (defined by `command_decorator` itself)
+        @return command_decorated function (defined by `seleniumcommand` itself)
         """
-        command = self.command_decorator.command_class(fnc or self.fnc)
+        command = SeleniumCommand(fnc or self.fnc)
         command.defaults.update(kw)
         command.wait_for_page = self.wait_for_page if waitDefault is None else waitDefault
         command.name = name
         command.docstring = self._docstring(name, kw.get('inverse', False))
-        return self.command_decorator(command)
+        return seleniumcommand(command)
 
     def related_commands(self):
         """
@@ -171,7 +168,10 @@ class SeleniumMultiCommandType(SeleniumCommandType):
 
 class seleniumimperative(SeleniumMultiCommandType):
     """
-    Imperative functions are those execute stuff, returns nothing and have an `AndWait` variant.
+    Imperative functions are those which execute stuff, return nothing and have an `AndWait` variant.
+
+    Example:
+        The selenium click() imperative has a 'clickAndWait()'-variant.
     """
     suffix_docstring = {
         'AndWait': ('Waits for a page change after command is executed.',)*2,
@@ -181,9 +181,9 @@ class seleniumimperative(SeleniumMultiCommandType):
         """
         @type driver: SeleniumDriver
         """
-        driver._deprecate_page()
+        driver.deprecate_page()
         self.fnc(driver, target, value=value)
-        driver._wait_pageload()
+        driver.wait_pageload()
 
     def related_commands(self):
         """
@@ -222,7 +222,7 @@ class seleniumgeneric(SeleniumMultiCommandType):
         """
         @type driver: SeleniumDriver
         """
-        verificationError = None
+        verificationError = result = expectedResult = None
         try:
             expectedResult, result = self.fnc(driver, target, value=value)  # can raise NoAlertPresentException
         except NoAlertPresentException:
@@ -230,16 +230,16 @@ class seleniumgeneric(SeleniumMultiCommandType):
                 return True
             verificationError = "There were no alerts or confirmations"
         else:
-            matches = driver._matches(expectedResult, result)
+            matches = driver.matches(expectedResult, result)
             if matches != inverse:
                 return True
 
-        if verificationError is None:
+        if not verificationError:
             verb = 'did' if inverse else 'did not'
             verificationError = 'Actual value "%s" %s match "%s"' % (result, verb, expectedResult)
 
         logger.error(verificationError)
-        driver._verification_errors.append(verificationError)
+        driver.verification_errors.append(verificationError)
         return False
 
     def _assert(self, driver, target, value=None, inverse=False):
@@ -248,19 +248,19 @@ class seleniumgeneric(SeleniumMultiCommandType):
         """
         verb = 'did' if inverse else 'did not'
         expectedResult, result = self.fnc(driver, target, value=value)
-        matches = driver._matches(expectedResult, result)
+        matches = driver.matches(expectedResult, result)
         assert matches != inverse, 'Actual value "%s" %s match "%s"' % (result, verb, expectedResult)
 
     def _waitFor(self, driver, target, value=None, inverse=False):
         """
         @type driver: SeleniumDriver
         """
-        for i in driver._retries():
+        for i in driver.retries():
             try:
                 expectedResult, result = self.fnc(driver, target, value=value)
                 if i == 0:
                     logger.info('... waiting for%s %r' % (' not' if inverse else '', expectedResult))
-                if driver._matches(expectedResult, result) != inverse:
+                if driver.matches(expectedResult, result) != inverse:
                     return
             except NOT_PRESENT_EXCEPTIONS:
                 if inverse:
