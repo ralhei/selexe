@@ -40,7 +40,8 @@ class ExternalContext(object):
     dummy_context_class = DummyContext
 
     def __new__(cls, driver, frame_element=None, window_handle=None):
-        if cls._stack and cls._stack[-1].driver == driver and cls._stack[-1].frame_element == frame_element and cls._stack[-1].window_handle == window_handle:
+        if cls._stack and cls._stack[-1].driver == driver and cls._stack[-1].frame_element == frame_element and \
+                cls._stack[-1].window_handle == window_handle:
             # Optimization: avoid context if already on similar context
             return DummyContext()
         return super(ExternalContext, cls).__new__(cls)
@@ -99,7 +100,7 @@ class ExternalElement(WebElement):
     def __init__(self, parent, id_, frame_element=None, window_handle=None):
         """
         Generate object which stores a wrapped object and owner frame_element or window_handle.
-   
+
         @param parent: selenium.webdriver.Remote driver object.
         @param id_: selenium object internal id
         @param frame_element: element whose object belongs to.
@@ -139,7 +140,7 @@ class ExternalElement(WebElement):
         return o
 
     def __getattribute__(self, item):
-        if item  == '__class__' or item in self.__class__.__dict__:
+        if item == '__class__' or item in self.__class__.__dict__:
             # filter non-inherited attributes
             return super(ExternalElement, self).__getattribute__(item)
         # wrap inherited attributes
@@ -157,6 +158,7 @@ def element_context(element):
     if hasattr(element, '_context'):
         return element._context
     return DummyContext()
+
 
 def original_element(element):
     """

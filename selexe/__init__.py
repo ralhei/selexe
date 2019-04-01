@@ -1,13 +1,11 @@
-
-try:
-    from selexe_runner import SelexeRunner, SelexeError
-except ImportError:
-    import os
-    if not 'RAN_BY_SETUP_PY' in os.environ:
-        raise
-
+import os
 import warnings
-warnings.filterwarnings('once', category=DeprecationWarning) # show all deprecated warning only once
+from pkg_resources import parse_version
+
+from .selexe_runner import SelexeRunner, SelexeError
+
+warnings.filterwarnings('once', category=DeprecationWarning)  # show all deprecated warning only once
 del warnings
 
-__version__ = '0.2.0'
+__version_str__ = open(os.path.join(os.path.dirname(__file__), 'version.txt')).readline().strip()
+__version__ = parse_version(__version_str__)

@@ -10,14 +10,11 @@ import logging
 import time
 import re
 import math
-import new
 import json
 import six
 import functools
 import bs4 as beautifulsoup
 import selenium.webdriver
-
-from six.moves import xrange
 
 from selenium.common.exceptions import NoSuchWindowException, NoSuchElementException, NoSuchAttributeException, \
     UnexpectedTagNameException, NoSuchFrameException, WebDriverException, TimeoutException, InvalidSelectorException
@@ -26,20 +23,20 @@ from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.alert import Alert
 
-from selenium_command import seleniumcommand, seleniumimperative, seleniumgeneric, selenium_multicommand_discover, \
+from .selenium_command import seleniumcommand, seleniumimperative, seleniumgeneric, selenium_multicommand_discover, \
     NOT_PRESENT_EXCEPTIONS
-from selenium_external import ExternalElement, ExternalContext, element_context, original_element
+from .selenium_external import ExternalElement, ExternalContext, element_context, original_element
 
 logger = logging.getLogger(__name__)
 
 
-class SeleniumDriver(object):
-    __metaclass__ = selenium_multicommand_discover
+@selenium_multicommand_discover
+class SeleniumDriver:
 
     _timeout = 1
     _poll = 1
     _num_retries = 1
-    _verification_errors = ()
+    verification_errors = ()
     _by_target_locators = {
         'css': By.CSS_SELECTOR,
         'id': By.ID,
@@ -88,15 +85,15 @@ class SeleniumDriver(object):
         self._poll = int(poll)
         self._num_retries = self._count_retries()
 
-    def _deprecate_page(self):
+    def deprecate_page(self):
         self.driver.execute_script('document._deprecated_by_selexe=true;')
 
-    def _wait_pageload(self, timeout=None):
+    def wait_pageload(self, timeout=None):
         """
         Waits for document to get loaded. If document has frames, wait for them too.
         """
         script = 'return (document.readyState===\'complete\')&&(!document._deprecated_by_selexe);'
-        for retry in self._retries(timeout=timeout):
+        for _ in self.retries(timeout=timeout):
             if self.driver.execute_script(script):
                 break
 
@@ -113,7 +110,7 @@ class SeleniumDriver(object):
             poll = self._poll
         return int(math.ceil(float(timeout) / poll))
 
-    def _retries(self, timeout=None):
+    def retries(self, timeout=None):
         """
         Iterable that sleeps, poll and finally raises RuntimeError timeout if exhausted
 
@@ -123,7 +120,7 @@ class SeleniumDriver(object):
         """
         repeats = self._num_retries if timeout is None else self._count_retries(timeout=timeout)
         poll = self._poll / 1000.
-        for i in xrange(repeats):
+        for i in range(repeats):
             yield i
             self.sleep(poll)
         raise TimeoutException("Timed out after %d ms" % (self._timeout if timeout is None else timeout))
@@ -150,14 +147,14 @@ class SeleniumDriver(object):
                 ct = nt
         raise TimeoutException("Timed out after %d ms" % timeout)
 
-    @property
-    def verification_errors(self):
-        """
-        List of verification errors
-
-        :return: safe copy if internal verification error list
-        """
-        return list(self._verification_errors)
+    # @property
+    # def verification_errors(self):
+    #     """
+    #     List of verification errors
+    #
+    #     :return: safe copy if internal verification error list
+    #     """
+    #     return list(self._verification_errors)
 
     def __init__(self, driver, baseuri=None, timeout=30000, poll=100):
         """
@@ -173,7 +170,7 @@ class SeleniumDriver(object):
         @type : selenium.webdriver.Remote
         """
         self.baseuri = baseuri or ''
-        self._verification_errors = []
+        self.verification_errors = []
         self._importUserFunctions()  # FIXME
         self.timeout = timeout
         self.poll = poll
@@ -185,7 +182,7 @@ class SeleniumDriver(object):
         """
         Clean verification errors
         """
-        del self._verification_errors[:]
+        del self.verification_errors[:]
 
     def save_screenshot(self, path):
         """
@@ -215,23 +212,27 @@ class SeleniumDriver(object):
             method = getattr(self, command)
         except AttributeError:
             raise NotImplementedError('no proper function for sel command "%s" implemented' % command)
-        return method(target, value, **kw)
+
+        v_target = self._expandVariables(target) if target else target
+        v_value = self._expandVariables(value) if value else value
+
+        return method(v_target, v_value, **kw)
 
     def _importUserFunctions(self):  # TODO: replace for flexibility
         """
-        Import user functions from module userfunctions. 
-        Each function in module userfunction (excluding the ones starting with "_") has to take 
-        3 arguments: SeleniumDriver instance, target string, value string. Wrap these function 
-        by the decorator function "seleniumcommand" and add them as bound methods. 
+        Import user functions from module userfunctions.
+        Each function in module userfunction (excluding the ones starting with "_") has to take
+        3 arguments: SeleniumDriver instance, target string, value string. Wrap these function
+        by the decorator function "seleniumcommand" and add them as bound methods.
         """
         try:
-            import userfunctions
+            from selexe import userfunctions
 
             fncdict = {key: value for key, value in six.iteritems(userfunctions.__dict__)
                        if not key.startswith("_") and callable(value)}
             for funcName, fnc in six.iteritems(fncdict):
-                newBoundMethod = new.instancemethod(seleniumcommand(fnc), self, SeleniumDriver)
-                setattr(self, funcName, newBoundMethod)
+                # newBoundMethod = new.instancemethod(seleniumcommand(fnc), self, SeleniumDriver)
+                setattr(self, funcName, seleniumcommand(fnc))
             logger.info("User functions: %s" % ", ".join(fncdict))
         except ImportError:
             logger.info("Using no user functions")
@@ -255,18 +256,18 @@ class SeleniumDriver(object):
     def _matchOptionText(self, target, tvalue):
         for option in target.find_elements_by_xpath("*"):
             text = option.text
-            if self._matches(tvalue, text):
+            if self.matches(tvalue, text):
                 return text
         return tvalue
 
     def _matchOptionValue(self, target, tvalue):
         for option in target.find_elements_by_xpath("*"):
             value = option.get_attribute("value")
-            if self._matches(tvalue, value):
+            if self.matches(tvalue, value):
                 return value
         return tvalue
 
-    def _writeScript(self, content, id=None, where='head'):
+    def _writeScript(self, content, id=None, where='head'):   # noqa
         """
         Writes given script into an script element similarly to runScript.
 
@@ -291,41 +292,41 @@ class SeleniumDriver(object):
         self.driver.execute_script(script)
 
     @seleniumcommand.nowait  # 'open' has no AndWait variant
-    def open(self, target, value=None):
+    def open(self, target, value=None):  # noqa
         """
         Open a URL in the browser and wait until the browser receives a new page
         @param target: URL (string)
         @param value: <not used>
         """
-        if not '://' in target:
+        if '://' not in target:
             if not self.baseuri:
                 raise RuntimeError('Relative %r cannot be resolved, baseuri not specified.' % target)
             if target[0] == '/':
                 target = '%s%s' % (self.baseuri, target)
             else:
                 target = '%s/%s' % (self.driver.current_url.rstrip('/'), target.lstrip('/'))
-        self._deprecate_page()
+        self.deprecate_page()
         self.driver.get(target)
-        self._wait_pageload()
+        self.wait_pageload()
 
     @seleniumimperative.nowait
-    def refresh(self, target=None, value=None):
+    def refresh(self, target=None, value=None):   # noqa
         """
         Simulates the user clicking the "Refresh" button on their browser.
         """
         # NOTE: this used to be done by seleniumcommand, but can be loaded with the same url so we need this
-        self._deprecate_page()
+        self.deprecate_page()
         self.driver.refresh()
-        self._wait_pageload()
+        self.wait_pageload()
 
     @seleniumimperative
-    def click(self, target, value=None):
+    def click(self, target, value=None):  # noqa
         """
         Click onto a HTML target (e.g. a button)
         @param target: a string determining an element in the HTML page
         @param value:  <not used>
         """
-        for retry in self._retries():
+        for _ in self.retries():
             try:
                 target = self._find_target(target, click=True)
                 self._event(target, 'click')
@@ -334,14 +335,14 @@ class SeleniumDriver(object):
                 continue
 
     @seleniumimperative
-    def windowFocus(self, target, value=None):
+    def windowFocus(self, _target, value=None):  # noqa
         """
         Gives focus to the currently selected window
         """
         self.driver.execute_script('window.focus();')
 
     @seleniumimperative
-    def windowMaximize(self, target, value=None):
+    def windowMaximize(self, _target, value=None):  # noqa
         """
         Resize currently selected window to take up the entire screen
         """
@@ -390,7 +391,7 @@ class SeleniumDriver(object):
                 select.select_by_index(int(tvalue))
 
     @seleniumcommand
-    def close(self, target=None, value=None):
+    def close(self, _target=None, value=None):  # noqa
         """
         Simulates the user clicking the "close" button in the titlebar of a popup window or tab.
 
@@ -399,11 +400,11 @@ class SeleniumDriver(object):
         self.driver.close()
 
     @seleniumcommand
-    def waitForPageToLoad(self, target=None, value=None):
+    def waitForPageToLoad(self, _target=None, value=None):  # noqa
         """
         Wait until page changes
         """
-        self._wait_pageload()
+        self.wait_pageload()
 
     @seleniumcommand
     def type(self, target, value):
@@ -417,7 +418,7 @@ class SeleniumDriver(object):
         target_elem.send_keys(value)
 
     @seleniumcommand
-    def check(self, target, value):
+    def check(self, target, value=None):  # noqa
         """
         Check a toggle-button (checkbox/radio).
         @param target: an element locator
@@ -428,7 +429,7 @@ class SeleniumDriver(object):
             target_elem.click()
 
     @seleniumcommand
-    def uncheck(self, target, value=None):
+    def uncheck(self, target, value=None):  # noqa
         """
         Uncheck a toggle-button (checkbox/radio).
         @param target: an element locator
@@ -480,9 +481,8 @@ class SeleniumDriver(object):
             else:
                 logger.exception('Event trigger for %r is not implemented yet, will be ignored.' % name)
 
-
     @seleniumimperative
-    def mouseOver(self, target, value=None):
+    def mouseOver(self, target, value=None):  # noqa
         """
         Simulate a user moving the mouse over a specified element.
         @param target: an element locator
@@ -499,7 +499,7 @@ class SeleniumDriver(object):
         self._event(target, value)
 
     @seleniumimperative
-    def mouseOut(self, target, value=None):
+    def mouseOut(self, target, value=None):  # noqa
         """
         Simulate a user moving the mouse away from a specified element.
         @param target: an element locator
@@ -511,8 +511,11 @@ class SeleniumDriver(object):
     def waitForPopUp(self, target=None, value=None):
         """
         Wait for a popup window to appear and load up.
-        @param target: the JavaScript window "name" of the window that will appear (not the text of the title bar). If unspecified, or specified as 'null', this command will wait for the first non-top window to appear (don't rely on this if you are working with multiple popups simultaneously).
-        @param value: a timeout in milliseconds, after which the action will return with an error. If this value is not specified, the default Selenium timeout will be used. See the setTimeout() command.
+        @param target: the JavaScript window "name" of the window that will appear (not the text of the title bar).
+                       If unspecified, or specified as 'null', this command will wait for the first non-top window to
+                       appear (don't rely on this if you are working with multiple popups simultaneously).
+        @param value: a timeout in milliseconds, after which the action will return with an error. If this value is
+                      not specified, the default Selenium timeout will be used. See the setTimeout() command.
         """
         timeout = None if value in (None, '', 'null') else int(value)
         if target in (None, '', 'null'):
@@ -521,7 +524,7 @@ class SeleniumDriver(object):
                 for handle in self.driver.window_handles:
                     with ExternalContext(self.driver, window_handle=handle):
                         if self._window_is_popup():
-                            self._wait_pageload(timeout)
+                            self.wait_pageload(timeout)
                             one = True
                 if one:
                     break
@@ -530,16 +533,15 @@ class SeleniumDriver(object):
             for timeout in self._autotimeout(timeout):
                 try:
                     self._selectWindow(target, mode='popup')
-                    self._wait_pageload(timeout)
+                    self.wait_pageload(timeout)
                     break
                 except NoSuchWindowException:
                     continue
                 finally:
                     self.driver.switch_to.window(current_window_handle)
 
-
     @seleniumcommand
-    def setTimeout(self, target, value=None):
+    def setTimeout(self, target, value=None):  # noqa
         """
         Specifies the amount of time that Selenium will wait for actions to complete.
 
@@ -551,7 +553,7 @@ class SeleniumDriver(object):
         self.timeout = int(target)
 
     @seleniumimperative
-    def setSpeed(self, target, value=None):
+    def setSpeed(self, target, value=None):  # noqa
         """
         Set execution speed (i.e., set the millisecond length of a delay which will follow each selenium operation).
         By default, there is no such delay, i.e., the delay is 0 milliseconds.
@@ -565,14 +567,20 @@ class SeleniumDriver(object):
         """
         Delete a named cookie with specified path and domain.
 
-        Be careful; to delete a cookie, you need to delete it using the exact same path and domain that were used to create the cookie. If the path is wrong, or the domain is wrong, the cookie simply won't be deleted.
+        Be careful; to delete a cookie, you need to delete it using the exact same path and domain that were used
+        to create the cookie. If the path is wrong, or the domain is wrong, the cookie simply won't be deleted.
 
         Also note that specifying a domain that isn't a subset of the current domain will usually fail.
 
-        Since there's no way to discover at runtime the original path and domain of a given cookie, we've added an option called 'recurse' to try all sub-domains of the current domain with all paths that are a subset of the current path. Beware; this option can be slow. In big-O notation, it operates in O(n*m) time, where n is the number of dots in the domain name and m is the number of slashes in the path.
+        Since there's no way to discover at runtime the original path and domain of a given cookie, we've added an
+        option called 'recurse' to try all sub-domains of the current domain with all paths that are a subset of
+        the current path. Beware; this option can be slow. In big-O notation, it operates in O(n*m) time, where n is
+        the number of dots in the domain name and m is the number of slashes in the path.
 
         @param target:  the name of the cookie to be deleted
-        @param value:  options for the cookie. Currently supported options include 'path', 'domain' and 'recurse.' The optionsString's format is "path=/path/, domain=.foo.com, recurse=true". The order of options are irrelevant. Note that specifying a domain that isn't a subset of the current domain will usually fail.
+        @param value:  options for the cookie. Currently supported options include 'path', 'domain' and 'recurse.'
+        The optionsString's format is "path=/path/, domain=.foo.com, recurse=true". The order of options are
+        irrelevant. Note that specifying a domain that isn't a subset of the current domain will usually fail.
         """
         path = None
         domain = None
@@ -595,12 +603,12 @@ class SeleniumDriver(object):
             samedomain = True
             if domain:
                 samedomain = cookie['domain'].endswith(domain) if recurse and 'domain' in cookie else (
-                cookie.get('domain', None) == domain)
+                    cookie.get('domain', None) == domain)
             if samepath and samedomain:
                 self.driver.delete_cookie(target)
 
     @seleniumimperative
-    def deleteAllVisibleCookies(self, target=None, value=None):
+    def deleteAllVisibleCookies(self, _target=None, value=None):  # noqa
         """
         Calls deleteCookie with recurse=true on all cookies visible to the current page.
         """
@@ -642,7 +650,7 @@ class SeleniumDriver(object):
         """
         Switch to window with given javascript expression
 
-        @param title: str
+        @param expression: str
         @return: handle of the window
         @raises: NoSuchWindowException if not found
         """
@@ -721,7 +729,7 @@ class SeleniumDriver(object):
                 try:
                     self._selectWindow('%s=%s' % (tag, value), mode)
                     break
-                except NoSuchWindowException as e:
+                except NoSuchWindowException:
                     pass
             else:
                 raise NoSuchWindowException('Could not find %s with target %s' % (mode, value))
@@ -730,7 +738,7 @@ class SeleniumDriver(object):
             raise NoSuchWindowException('Could not find %s with target %s' % (mode, value))
 
     @seleniumcommand
-    def selectWindow(self, target, value=None):
+    def selectWindow(self, target, value=None):  # noqa
         """
         Selects a popup window using a window locator; once a popup window has been selected, all commands go to that
         window. To select the main window again, use null as the target.
@@ -773,7 +781,7 @@ class SeleniumDriver(object):
         self._selectWindow(target, mode='window')
 
     @seleniumcommand
-    def selectPopUp(self, target='null', value=None):
+    def selectPopUp(self, target='null', value=None):  # noqa
         """
         Simplifies the process of selecting a popup window (and does not offer functionality beyond what selectWindow()
         already provides).
@@ -797,11 +805,15 @@ class SeleniumDriver(object):
         self._selectWindow(target, mode='popup')
 
     @seleniumcommand
-    def selectFrame(self, target, value=None):
+    def selectFrame(self, target, value=None):  # noqa
         """
-        Selects a frame within the current window. (You may invoke this command multiple times to select nested frames.) To select the parent frame, use "relative=parent" as a locator; to select the top frame, use "relative=top". You can also select a frame by its 0-based index number; select the first frame with "index=0", or the third frame with "index=2".
+        Selects a frame within the current window. (You may invoke this command multiple times to select nested frames.)
+        To select the parent frame, use "relative=parent" as a locator; to select the top frame, use "relative=top".
+        You can also select a frame by its 0-based index number; select the first frame with "index=0", or the third
+        frame with "index=2".
 
-        You may also use a DOM expression to identify the frame you want directly, like this: dom=frames["main"].frames["subframe"]
+        You may also use a DOM expression to identify the frame you want directly,
+        like this: dom=frames["main"].frames["subframe"]
 
         @param target: an element locator identifying a frame or iframe
         """
@@ -861,13 +873,15 @@ class SeleniumDriver(object):
 
     @seleniumimperative
     def keyDown(self, target, value=None):
-        target_elm = self._find_target(target)
-        self._chain.key_down(target_elm, value)
+        # target_elm = self._find_target(target)
+        # self._chain.key_down(target_elm, value)
+        raise NotImplementedError('not implemented yet')
 
     @seleniumimperative
     def keyUp(self, target, value=None):
-        target_elm = self._find_target(target)
-        self._chain.key_up(target_elm, value)
+        # target_elm = self._find_target(target)
+        # self._chain.key_up(target_elm, value)
+        raise NotImplementedError('not implemented yet')
 
     @seleniumimperative
     def metaKeyDown(self, target=None, value=None):
@@ -940,9 +954,13 @@ class SeleniumDriver(object):
     @seleniumimperative
     def openWindow(self, target, value):
         """
-        Opens a popup window (if a window with that ID isn't already open). After opening the window, you'll need to select it using the selectWindow command.
+        Opens a popup window (if a window with that ID isn't already open). After opening the window, you'll
+        need to select it using the selectWindow command.
 
-        This command can also be a useful workaround for bug SEL-339. In some cases, Selenium will be unable to intercept a call to window.open (if the call occurs during or before the "onLoad" event, for example). In those cases, you can force Selenium to notice the open window's name by using the Selenium openWindow command, using an empty (blank) url, like this: openWindow("", "myFunnyWindow").
+        This command can also be a useful workaround for bug SEL-339. In some cases, Selenium will be unable to
+        intercept a call to window.open (if the call occurs during or before the "onLoad" event, for example).
+        In those cases, you can force Selenium to notice the open window's name by using the Selenium openWindow
+        command, using an empty (blank) url, like this: openWindow("", "myFunnyWindow").
 
         @param target: the URL to open, which can be blank
         @param value: the JavaScript window ID of the window to select
@@ -950,7 +968,7 @@ class SeleniumDriver(object):
         raise NotImplementedError('not implemented yet')
 
     @seleniumcommand
-    def pause(self, target, value=None):
+    def pause(self, target, value=None):  # noqa
         """
         Wait for the specified amount of time (in milliseconds)
 
@@ -960,14 +978,14 @@ class SeleniumDriver(object):
         time.sleep(milliseconds)  # TODO: find a better way
 
     @seleniumimperative
-    def refresh(self, target=None, value=None):
+    def refresh(self, _target=None, value=None):  # noqa
         """
         Simulates the user clicking the "Refresh" button on their browser.
         """
         self.driver.refresh()
 
     @seleniumimperative
-    def removeAllSelections(self, target, value=None):
+    def removeAllSelections(self, target, value=None):  # noqa
         """
         Unselects all of the selected options in a multi-select element.
 
@@ -976,20 +994,22 @@ class SeleniumDriver(object):
         raise NotImplementedError('not implemented yet')
 
     @seleniumimperative
-    def removeScript(self, target, value=None):
+    def removeScript(self, _target, value=None):  # noqa
         """
         *Important:* This command does nothing as works along with with `addScript` which is unsupported.
 
-        Removes a script tag from the Selenium document identified by the given id. Does nothing if the referenced tag doesn't exist.
+        Removes a script tag from the Selenium document identified by the given id. Does nothing if the referenced
+        tag doesn't exist.
 
-        @param target: the id of the script element to remove.
+        @param _target: the id of the script element to remove.
         """
-        logger.warn('This command does nothing as works along with with `addScript` which is unsupported.')
+        logger.warning('This command does nothing as works along with with `addScript` which is unsupported.')
 
     @seleniumimperative
     def removeSelection(self, target, value):
         """
-        Remove a selection from the set of selected options in a multi-select element using an option locator. @see #doSelect for details of option locators
+        Remove a selection from the set of selected options in a multi-select element using an option locator.
+        @see #doSelect for details of option locators
 
         @param target: an element locator identifying a multi-select box
         @param value: an option locator (a label by default)
@@ -999,7 +1019,9 @@ class SeleniumDriver(object):
     @seleniumimperative
     def rollup(self, target, value):
         """
-        Executes a command rollup, which is a series of commands with a unique name, and optionally arguments that control the generation of the set of commands. If any one of the rolled-up commands fails, the rollup is considered to have failed. Rollups may also contain nested rollups.
+        Executes a command rollup, which is a series of commands with a unique name, and optionally arguments that
+        control the generation of the set of commands. If any one of the rolled-up commands fails, the rollup is
+        considered to have failed. Rollups may also contain nested rollups.
 
         @param target: the name of the rollup command
         @param value: keyword arguments string that influences how the rollup expands into commands
@@ -1007,23 +1029,32 @@ class SeleniumDriver(object):
         raise NotImplementedError('not implemented yet')
 
     @seleniumimperative
-    def runScript(self, target, value=None):
+    def runScript(self, _target, value=None):  # noqa
         """
-        Creates a new "script" tag in the body of the current test window, and adds the specified text into the body of the command. Scripts run in this way can often be debugged more easily than scripts executed using Selenium's "getEval" command. Beware that JS exceptions thrown in these script tags aren't managed by Selenium, so you should probably wrap your script in try/catch blocks if there is any chance that the script will throw an exception.
+        Creates a new "script" tag in the body of the current test window, and adds the specified text into the
+        body of the command. Scripts run in this way can often be debugged more easily than scripts executed using
+        Selenium's "getEval" command. Beware that JS exceptions thrown in these script tags aren't managed by
+        Selenium, so you should probably wrap your script in try/catch blocks if there is any chance that the
+        script will throw an exception.
 
-        @param target: the JavaScript snippet to run
+        @param _target: the JavaScript snippet to run
         """
         self._writeScript(value, where='body')
 
     @seleniumimperative
     def addScript(self, target, value=None):
         """
-        *Important:* Not implemented as it's not supported by Selenium IDE itself, see: https://code.google.com/p/selenium/issues/detail?id=5998
+        *Important:* Not implemented as it's not supported by Selenium IDE itself,
+        see: https://code.google.com/p/selenium/issues/detail?id=5998
 
-         Loads script content into a new script tag in the Selenium document. This differs from the runScript command in that runScript adds the script tag to the document of the AUT, not the Selenium document. The following entities in the script content are replaced by the characters they represent: < > & The corresponding remove command is removeScript.
+         Loads script content into a new script tag in the Selenium document. This differs from the runScript
+         command in that runScript adds the script tag to the document of the AUT, not the Selenium document.
+         The following entities in the script content are replaced by the characters they represent: < > &
+         The corresponding remove command is removeScript.
 
         scriptContent - the Javascript content of the script to add
-        scriptTagId - (optional) the id of the new script tag. If specified, and an element with this id already exists, this operation will fail.
+        scriptTagId - (optional) the id of the new script tag. If specified, and an element with this id already
+        exists, this operation will fail.
         """
         raise NotImplementedError('Unsupported by Selenium IDE and unable to get Selenium document using webdriver.')
 
@@ -1087,24 +1118,24 @@ class SeleniumDriver(object):
         with element_context(element):
             source = self.driver.page_source
 
-        return beautifulsoup.BeautifulSoup(source).select(css)[0]
+        return beautifulsoup.BeautifulSoup(source, "html.parser").select(css)[0]
 
     @seleniumgeneric
-    def TextPresent(self, target, value=None):
+    def TextPresent(self, target, value=None):  # noqa
         """
         Verify that the specified text pattern appears somewhere on the page shown to the user (if visible).
         @param target: a pattern to match with the text of the page
         @param value: <not used>
         @return true if the pattern matches the text, false otherwise
         """
-        doc = beautifulsoup.BeautifulSoup(self.driver.page_source).body
+        doc = beautifulsoup.BeautifulSoup(self.driver.page_source, "html.parser").body
         for result in doc.findAll(text=self._translatePatternToRegex(target)):
             if self._element_from_soup(result).is_displayed():
                 return True, True
         return True, False
 
     @seleniumgeneric
-    def Title(self, target=None, value=None):
+    def Title(self, target=None, value=None):  # noqa
         """
         Gets the title of the current page.
         @param target: <not used>
@@ -1114,7 +1145,7 @@ class SeleniumDriver(object):
         return target, self.driver.title
 
     @seleniumgeneric
-    def Location(self, target, value=None):
+    def Location(self, target, value=None):  # noqa
         """
         Get absolute url of current page
         @param target:
@@ -1123,7 +1154,7 @@ class SeleniumDriver(object):
         return target, self.driver.current_url
 
     @seleniumgeneric
-    def Visible(self, target, value=None):
+    def Visible(self, target, value=None):  # noqa
         """
         Get if element for given locator is visible
         @param target:
@@ -1135,9 +1166,10 @@ class SeleniumDriver(object):
             return True, False
 
     @seleniumgeneric
-    def ElementPresent(self, target, value=None):
+    def ElementPresent(self, target, value=None):  # noqa
         """
-        Verify that the specified element is somewhere on the page. Catch a NoSuchElementException in order to return a result.
+        Verify that the specified element is somewhere on the page. Catch a NoSuchElementException in order to
+        return a result.
         @param target: an element locator
         @param value: <not used>
         @return true if the element is present, false otherwise
@@ -1183,8 +1215,8 @@ class SeleniumDriver(object):
         reset = ['document']  # ensure consistent behavior
         js = (
             'var %(reset)s,'
-                'storedVars=%(variables)s,'
-                'r = eval(%(target)s);'
+            'storedVars=%(variables)s,'
+            'r = eval(%(target)s);'
             # We need to care about Selenium IDE returning 'null' instead of 'undefined'.
             'return [\'\'+(r===undefined?null:r), storedVars];'
             ) % {
@@ -1236,7 +1268,7 @@ class SeleniumDriver(object):
         return (int(value) if value else count), count
 
     @seleniumgeneric.nowait
-    def Alert(self, target, value=None):
+    def Alert(self, target, value=None):  # noqa
         """
         Retrieve the message of a JavaScript alert generated during the previous action, or fail if there are no alerts.
         Getting an alert has the same effect as manually clicking OK. If an alert is generated but you do not consume it
@@ -1255,7 +1287,7 @@ class SeleniumDriver(object):
             raise
 
     @seleniumgeneric.nowait
-    def Confirmation(self, target, value=None):
+    def Confirmation(self, target, value=None):  # noqa
         # TODO: implement properly
         alert = Alert(self.driver)
         try:
@@ -1269,7 +1301,8 @@ class SeleniumDriver(object):
     @seleniumgeneric
     def Table(self, target, value):
         """
-        Get the text from a cell of a table. The cellAddress syntax is tableLocator.row.column, where row and column start at 0.
+        Get the text from a cell of a table. The cellAddress syntax is tableLocator.row.column, where row and column
+        start at 0.
         @param target: a cell address, e.g. "css=#myFirstTable.2.3"
         @param value: the text which is expected in the specified cell.
         @return the text from the specified cell
@@ -1314,7 +1347,7 @@ class SeleniumDriver(object):
         if locators is None:
             return tag, value
 
-        if not tag in locators:
+        if tag not in locators:
             if tag == default:
                 return tag, value
             raise UnexpectedTagNameException('invalid locator format "%s"' % tag)
@@ -1387,15 +1420,16 @@ class SeleniumDriver(object):
     _simplify_spaces = re.compile(r'\n\s+')
 
     @classmethod
-    def _matches(cls, expectedResult, result):
+    def matches(cls, expectedResult, result):
         """
         Try to match a result of a selenese command with its expected result.
-        The function performs a plain equality comparison for non-Strings and handles all three kinds of String-match patterns which Selenium defines:
+        The function performs a plain equality comparison for non-Strings and handles all three kinds of String-match
+        patterns which Selenium defines:
         1) plain equality comparison
         2) exact: a non-wildcard expressions
         3) regexp: a regular expression
         4) glob: a (possible) wildcard expression. This is the default (fallback) method if 1), 2) and 3) don't apply
-        see: http://release.seleniumhq.org/selenium-remote-control/0.9.2/doc/dotnet/Selenium.html    
+        see: http://release.seleniumhq.org/selenium-remote-control/0.9.2/doc/dotnet/Selenium.html
         @param expectedResult: the expected result of a selenese command
         @param result: the actual result of a selenese command
         @return true if matches, false otherwise
@@ -1415,13 +1449,20 @@ class SeleniumDriver(object):
         """
         Various Pattern syntaxes are available for matching string values:
 
-            * *glob:pattern* Match a string against a "glob" (aka "wildmat") pattern. "Glob" is a kind of limited regular-expression syntax typically used in command-line shells. In a glob pattern, "*" represents any sequence of characters, and "?" represents any single character. Glob patterns match against the entire string.
-            * *regexp:pattern* Match a string using a regular-expression. The full power of JavaScript regular-expressions is available.
+            * *glob:pattern* Match a string against a "glob" (aka "wildmat") pattern. "Glob" is a kind of limited
+              regular-expression syntax typically used in command-line shells. In a glob pattern, "*" represents
+              any sequence of characters, and "?" represents any single character. Glob patterns match against the
+              entire string.
+            * *regexp:pattern* Match a string using a regular-expression. The full power of JavaScript
+              regular-expressions is available.
             * *regexpi:regexpi* Match a string using a case-insensitive regular-expression.
             * *xact:string* Match a string exactly, verbatim, without any of that fancy wildcard stuff.
-If no pattern prefix is specified, Selenium assumes that it's a "glob" pattern.
+            If no pattern prefix is specified, Selenium assumes that it's a "glob" pattern.
 
-            For commands that return multiple values (such as verifySelectOptions), the string being matched is a comma-separated list of the return values, where both commas and backslashes in the values are backslash-escaped. When providing a pattern, the optional matching syntax (i.e. glob, regexp, etc.) is specified once, as usual, at the beginning of the pattern.
+            For commands that return multiple values (such as verifySelectOptions), the string being matched is a
+            comma-separated list of the return values, where both commas and backslashes in the values are
+            backslash-escaped. When providing a pattern, the optional matching syntax (i.e. glob, regexp, etc.)
+            is specified once, as usual, at the beginning of the pattern.
 
         @param pat: pattern
         @return: python compiled regexp (instance of _sre.SRE_Pattern)

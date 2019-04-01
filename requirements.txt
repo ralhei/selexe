@@ -1,4 +1,4 @@
-beautifulsoup4
-selenium
+beautifulsoup4~=4.7.0
+selenium~=2.53.0
 six
 setuptools

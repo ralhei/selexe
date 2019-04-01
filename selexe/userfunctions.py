@@ -1,10 +1,11 @@
-import httplib, json, time
+import json
+import http.client
 from selenium.webdriver.common.action_chains import ActionChains
 
 
 def _connect(url):
     url = url[7:] if url.startswith('http://') else url
-    connection = httplib.HTTPConnection(url)
+    connection = http.client.HTTPConnection(url)
     return connection
 
 
@@ -12,7 +13,7 @@ def putRest(self, target, value):
     """
     Selenium.prototype.doPutRest = function(url, data) {
         var jQuery = this.browserbot.getUserWindow().jQuery;
-        jQuery.ajax({url: url, data: data, processData: false, 
+        jQuery.ajax({url: url, data: data, processData: false,
             contentType: 'application/json', async: false, type: 'put'});
     };
     """
@@ -29,7 +30,7 @@ def postRest(self, target, value):
     assert connection.getresponse().status == 200
 
 
-def deleteRest(self, target, value):
+def deleteRest(self, target, _value):
     """
     Selenium.prototype.doDeleteRest = function(url) {
         this.browserbot.getUserWindow().jQuery.ajax({url: url, async: false,
@@ -39,10 +40,10 @@ def deleteRest(self, target, value):
     connection = _connect(self.baseuri)
     connection.request('DELETE', target)
     assert connection.getresponse().status == 200
-     
- 
+
+
 def assertGetRest(self, target, value):
-    """  
+    """
     Selenium.prototype.assertGetRest = function(url, data) {
     var actualData = this.browserbot.getUserWindow().jQuery.ajax({url: url,
         async: false, type: 'get'}).responseText;
@@ -50,24 +51,24 @@ def assertGetRest(self, target, value):
     var actualData = this.browserbot.getUserWindow().jQuery.parseJSON(actualData);
     for (var key in expectedData) {
         if (expectedData[key] != actualData[key]) {
-            throw new SeleniumError (key + ": actual value " + actualValue + 
+            throw new SeleniumError (key + ": actual value " + actualValue +
                     " does not match expected value " + expectedValue);
             };
         };
-    };    
+    };
     """
     connection = _connect(self.baseuri)
     connection.request('GET', target)
     response = connection.getresponse()
     assert response.status == 200
-    data = json.loads(response.read().strip('[]')) # do a strip because a json value is returned in a list if it is requested with parameters.
+    # do a strip because a json value is returned in a list if it is requested with parameters
+    data = json.loads(response.read().strip('[]'))
     expectedData = json.loads(value)
     for key in expectedData:
         if data[key] != expectedData[key]:
-            raise AssertionError("%s: actual value %s does not match expected value %s" \
-                                  % key, data[key], expectedData[key])
-             
- 
+            raise AssertionError("%s: actual value %s does not match expected value %s"
+                                 % key, data[key], expectedData[key])
+
 
 def assertTextContainedInEachElement(self, target, value):
     """
@@ -85,7 +86,7 @@ def assertTextContainedInEachElement(self, target, value):
     for target_elem in target_elems:
         assert self._isContained(value, target_elem.text)
 
- 
+
 def verifyValidation(self, target, value):
     """
     Selenium.prototype.doVerifyValidation = function(locator, expectedStatus) {
@@ -98,7 +99,7 @@ def verifyValidation(self, target, value):
             var expectedValidationMsg = this.browserbot.getCurrentWindow().jQuery.
             trim(expectedStatusArray[1]);
             var actualAttributeValue = this.getAttribute(locator + '@class');
-            
+
             if (actualAttributeValue != expectedAttributeValue && numOfLoops <
                     MAXNUMOFLOOPS) {
                 NotWaitingForCondition = function() {
@@ -128,15 +129,15 @@ def verifyValidation(self, target, value):
             return true;
         };
     };
-    
-    
+
+
     function NotWaitingForCondition() {
         return true;
     };
-    
+
     var numOfLoops = 0;
     var MAXNUMOFLOOPS = 5;
-    
+
     function resetWaitParams() {
         numOfLoops = 0;
         NotWaitingForCondition = function() {
@@ -144,9 +145,8 @@ def verifyValidation(self, target, value):
         };
     };
     """
-    expectedResult = value.split(':') if ':' in value else [value, ''] # e.g. 'w Error: Only integers allowed' or just 'w'
+    expectedResult = value.split(':') if ':' in value else [value, '']
     expectedClassValue, expectedValidationMsg = expectedResult
-    #self.waitForAttribute(target + '@class', expectedClassValue.strip())
     target_elem = self._find_target(target)
     assert expectedClassValue.strip() in target_elem.get_attribute('class')
     ActionChains(self.driver).move_to_element(target_elem).perform()

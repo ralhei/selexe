@@ -7,11 +7,12 @@ import argparse
 
 from six.moves import UserString
 
-import selexe_runner
+from . import selexe_runner
 
 
 SUCCESS = logging.ERROR + 1
 logger = logging.getLogger(__name__)
+
 
 class TTYColorFormat(UserString):
     fmt = '[ %(color)s%(level)s%(reset)s ] %%(message)s'
@@ -28,6 +29,7 @@ class TTYColorFormat(UserString):
     custom_levels = {
         SUCCESS: 'SUCCESS'
     }
+
     def __init__(self):
         plat = sys.platform
         supported_platform = plat != 'Pocket PC' and (plat != 'win32' or 'ANSICON' in os.environ)
@@ -53,6 +55,7 @@ class WebdriverAction(argparse.Action):
         super(WebdriverAction, self).__init__(option_strings=option_strings, dest=dest, default=self.default,
                                               choices=self.drivers, nargs=1, required=required,
                                               help=help, metavar=metavar)
+
     def __call__(self, parser, namespace, values, option_string=None):
         setattr(namespace, self.dest, values)
 
@@ -167,7 +170,7 @@ def main(argv=None):
     handler.setLevel(level)
 
     # Configure selenium logger if verbosity is 2
-    if level < logging.info:
+    if level < logging.INFO:
         logger = logging.getLogger('selenium')
         logger.setLevel(level)
         logger.addHandler(handler)
