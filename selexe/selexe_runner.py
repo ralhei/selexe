@@ -152,10 +152,10 @@ class SelexeRunner(object):
                 sd.baseuri = baseuri
             try:
                 if self.timeit:
-                    numsec = timeit.timeit(functools.partial(sd, command, target, value), number=1)
+                    numsec = timeit.timeit(functools.partial(sd.execute, command, target, value), number=1)
                     logger.info("Executed in %f sec" % numsec)
                 else:
-                    sd(command, target, value)
+                    sd.execute(command, target, value)
             except:   # noqa
                 logger.error('Command %s(%r, %r) failed on \'%s\'.' % (command, target, value, sd.driver.current_url))
                 raise

@@ -18,7 +18,7 @@ def selenium_multicommand_discover(klass):
     :returns: given class
     """
     dct = klass.__dict__
-    genericattrs = [(key, value) for key, value in dct.items() if isinstance(value, SeleniumMultiCommandType)]
+    genericattrs = [(key, value) for key, value in dct.items() if isinstance(value, SeleniumMultiCommand)]
     relatedattrs = [(fnc.__name__, fnc) for key, value in genericattrs for fnc in value.related_commands()]
 
     for key, value in genericattrs:
@@ -28,8 +28,18 @@ def selenium_multicommand_discover(klass):
     return klass
 
 
-class SeleniumCommand(object):
+class SeleniumCommand:
     __slots__ = ('fnc', 'name', 'docstring', 'defaults', 'wait_for_page', '_original_name')
+
+    def __init__(self, fnc, wait_for_page=True):
+        # print('__init__ called for', fnc)
+        self.fnc = fnc
+        self.name = getattr(fnc, 'fnc_name', None) or getattr(fnc, '__name__', None) \
+            or getattr(fnc.__class__, '__name__')
+        self.docstring = getattr(fnc, '__doc__', None) or ''
+        self.defaults = {}  # default kwargs parsed command
+        self.wait_for_page = wait_for_page  # wait for ongoing page load before running
+        self._original_name = self.name
 
     @classmethod
     def nowait(cls, fnc):
@@ -42,18 +52,7 @@ class SeleniumCommand(object):
         @param fnc: function to be encapsulated
         @return instance of this class
         """
-        obj = cls(fnc)
-        obj.wait_for_page = False
-        return obj
-
-    def __init__(self, fnc):
-        self.fnc = fnc
-        self.name = getattr(fnc, 'fnc_name', None) or getattr(fnc, '__name__', None) \
-            or getattr(fnc.__class__, '__name__')
-        self.docstring = getattr(fnc, '__doc__', None) or ''
-        self.defaults = {}  # default kwargs parsed command
-        self.wait_for_page = True  # wait for ongoing page load before running
-        self._original_name = self.name
+        return cls(fnc, wait_for_page=False)
 
     def __eq__(self, other):
         """
@@ -80,25 +79,15 @@ class seleniumcommand(SeleniumCommand):
     This decorator returns a function with signature `(driver_instance, target=None, value=None)`, with the related
     `command_class` instance assigned to `command` function attribute.
     """
-    @classmethod
-    def nowait(cls, fnc):
-        command = SeleniumCommand(fnc)
-        command.wait_for_page = False
-        return cls(command)
-
-    def __new__(cls, fnc):
-        sel_cmd = fnc if isinstance(fnc, SeleniumCommand) else SeleniumCommand(fnc)
+    def __new__(cls, fnc, wait_for_page=True):
+        # print('__new__ called for', fnc)
+        sel_cmd = fnc if isinstance(fnc, SeleniumCommand) else SeleniumCommand(fnc, wait_for_page=wait_for_page)
 
         def wrapped(driver, target=None, value=None):
-            """
-            @type driver: SeleniumDriver
-            """
-            v_target = target  # driver._expandVariables(target) if target else target
-            v_value = value   # driver._expandVariables(value) if value else value
             if sel_cmd.wait_for_page:
                 driver.wait_pageload()
             logger.info('%s(%r, %r)' % (sel_cmd.name, target, value))
-            return sel_cmd.fnc(driver, v_target, v_value, **sel_cmd.defaults)
+            return sel_cmd.fnc(driver, target, value, **sel_cmd.defaults)
 
         wrapped.command = sel_cmd
         wrapped.__name__ = sel_cmd.name
@@ -106,7 +95,7 @@ class seleniumcommand(SeleniumCommand):
         return wrapped
 
 
-class SeleniumMultiCommandType(SeleniumCommand):
+class SeleniumMultiCommand(SeleniumCommand):
     """
     Object that encapsulates a generic selenium command (those prefixed by 'get' and 'is' in Selenium prototype),
     includes a classmethod `discover` which puts all related methods in class given as parameter and can be used
@@ -166,7 +155,7 @@ class SeleniumMultiCommandType(SeleniumCommand):
         yield self._wrapper(self.name)
 
 
-class seleniumimperative(SeleniumMultiCommandType):
+class seleniumimperative(SeleniumMultiCommand):
     """
     Imperative functions are those which execute stuff, return nothing and have an `AndWait` variant.
 
@@ -196,10 +185,10 @@ class seleniumimperative(SeleniumMultiCommandType):
         yield self._wrapper('%sAndWait' % self.name, self._and_wait)
 
 
-class seleniumgeneric(SeleniumMultiCommandType):
+class seleniummulticommand(SeleniumMultiCommand):
     """
-    Generic functions are those that return values, and have get/is, verify, assert, waitFor, store, variants and their
-    negative counterparts.
+    MultiCommand functions are those that return values, and have get/is, verify, assert, waitFor, store, variants
+    and their negative counterparts.
 
     Generic proto-command functions must return a tuple with expectedResult (for using in assert, verify and so on) and
     the actual value.

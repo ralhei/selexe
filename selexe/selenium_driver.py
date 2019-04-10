@@ -23,7 +23,7 @@ from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.alert import Alert
 
-from .selenium_command import seleniumcommand, seleniumimperative, seleniumgeneric, selenium_multicommand_discover, \
+from .selenium_command import seleniumcommand, seleniumimperative, seleniummulticommand, selenium_multicommand_discover, \
     NOT_PRESENT_EXCEPTIONS
 from .selenium_external import ExternalElement, ExternalContext, element_context, original_element
 
@@ -192,9 +192,9 @@ class SeleniumDriver:
         """
         self.driver.save_screenshot(path)
 
-    def __call__(self, command, target=None, value=None, **kw):
+    def execute(self, command, target=None, value=None):
         """
-        Make an actual call to a Selenium action method.
+        Execute a selenese command
 
         Examples for methods are 'verifyText', 'assertText', 'waitForText', etc., so methods that are
         typically available in the Selenium IDE.
@@ -205,7 +205,6 @@ class SeleniumDriver:
         @param command: Selenium IDE command.
         @param target: command's first parameter, usually target.
         @param value: command's second parameter, optional.
-        @param **kw: commamnd's extra keyword arguments, optional.
         @return value returned by command, usually True, False or string.
         """
         try:
@@ -216,7 +215,7 @@ class SeleniumDriver:
         v_target = self._expandVariables(target) if target else target
         v_value = self._expandVariables(value) if value else value
 
-        return method(v_target, v_value, **kw)
+        return method(v_target, v_value)
 
     def _importUserFunctions(self):  # TODO: replace for flexibility
         """
@@ -348,7 +347,7 @@ class SeleniumDriver:
         """
         self.driver.maximize_window()
 
-    @seleniumcommand
+    @seleniumimperative
     def select(self, target, value):
         """
         Select an option from a drop-down using an option locator.
@@ -1003,7 +1002,8 @@ class SeleniumDriver:
 
         @param _target: the id of the script element to remove.
         """
-        logger.warning('This command does nothing as works along with with `addScript` which is unsupported.')
+        # logger.warning('This command does nothing as works along with with `addScript` which is unsupported.')
+        raise NotImplementedError('not implemented yet')
 
     @seleniumimperative
     def removeSelection(self, target, value):
@@ -1120,7 +1120,7 @@ class SeleniumDriver:
 
         return beautifulsoup.BeautifulSoup(source, "html.parser").select(css)[0]
 
-    @seleniumgeneric
+    @seleniummulticommand
     def TextPresent(self, target, value=None):  # noqa
         """
         Verify that the specified text pattern appears somewhere on the page shown to the user (if visible).
@@ -1134,7 +1134,7 @@ class SeleniumDriver:
                 return True, True
         return True, False
 
-    @seleniumgeneric
+    @seleniummulticommand
     def Title(self, target=None, value=None):  # noqa
         """
         Gets the title of the current page.
@@ -1144,7 +1144,7 @@ class SeleniumDriver:
         """
         return target, self.driver.title
 
-    @seleniumgeneric
+    @seleniummulticommand
     def Location(self, target, value=None):  # noqa
         """
         Get absolute url of current page
@@ -1153,7 +1153,7 @@ class SeleniumDriver:
         """
         return target, self.driver.current_url
 
-    @seleniumgeneric
+    @seleniummulticommand
     def Visible(self, target, value=None):  # noqa
         """
         Get if element for given locator is visible
@@ -1165,7 +1165,7 @@ class SeleniumDriver:
         except NOT_PRESENT_EXCEPTIONS:
             return True, False
 
-    @seleniumgeneric
+    @seleniummulticommand
     def ElementPresent(self, target, value=None):  # noqa
         """
         Verify that the specified element is somewhere on the page. Catch a NoSuchElementException in order to
@@ -1180,7 +1180,7 @@ class SeleniumDriver:
         except NOT_PRESENT_EXCEPTIONS:
             return True, False
 
-    @seleniumgeneric
+    @seleniummulticommand
     def Attribute(self, target, value):
         """
         Get the value of an element attribute.
@@ -1194,7 +1194,7 @@ class SeleniumDriver:
             raise NoSuchAttributeException(attr)
         return value, attrValue.strip()
 
-    @seleniumgeneric
+    @seleniummulticommand
     def Expression(self, target, value):
         """
         Get given expression value
@@ -1204,7 +1204,7 @@ class SeleniumDriver:
         """
         return value, target
 
-    @seleniumgeneric
+    @seleniummulticommand
     def Eval(self, target, value):
         """
         Get value returned by given javascript expression
@@ -1227,7 +1227,7 @@ class SeleniumDriver:
         result, self.storedVariables = self.driver.execute_script(js)
         return value, result
 
-    @seleniumgeneric
+    @seleniummulticommand
     def Text(self, target, value):
         """
         Get the text of an element. This works for any element that contains text, even if not visible.
@@ -1246,7 +1246,7 @@ class SeleniumDriver:
             element = original_element(element)
             return value, self.driver.execute_script(js, element).strip()
 
-    @seleniumgeneric
+    @seleniummulticommand
     def Value(self, target, value):
         """
         Get the value of an input field (or anything else with a value parameter).
@@ -1256,7 +1256,7 @@ class SeleniumDriver:
         """
         return value, self._find_target(target).get_attribute("value").strip()
 
-    @seleniumgeneric
+    @seleniummulticommand
     def XpathCount(self, target, value):
         """
         Get the number of nodes that match the specified xpath, e.g. "//table" would give the number of tables.
@@ -1267,7 +1267,7 @@ class SeleniumDriver:
         count = len(self.driver.find_elements_by_xpath(target))
         return (int(value) if value else count), count
 
-    @seleniumgeneric.nowait
+    @seleniummulticommand.nowait
     def Alert(self, target, value=None):  # noqa
         """
         Retrieve the message of a JavaScript alert generated during the previous action, or fail if there are no alerts.
@@ -1286,7 +1286,7 @@ class SeleniumDriver:
             logger.error('WebDriverException, maybe caused by driver not supporting Alert control.')
             raise
 
-    @seleniumgeneric.nowait
+    @seleniummulticommand.nowait
     def Confirmation(self, target, value=None):  # noqa
         # TODO: implement properly
         alert = Alert(self.driver)
@@ -1298,7 +1298,7 @@ class SeleniumDriver:
             logger.error('WebDriverException, maybe caused by driver not supporting Alert control.')
             raise
 
-    @seleniumgeneric
+    @seleniummulticommand
     def Table(self, target, value):
         """
         Get the text from a cell of a table. The cellAddress syntax is tableLocator.row.column, where row and column
