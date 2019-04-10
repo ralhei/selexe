@@ -145,12 +145,40 @@ class SelexeArgumentParser(argparse.ArgumentParser):
             help='python module containing setUp(driver) and/or tearDown(driver) fixture functions')
         add('--size', '-s', metavar="WIDTHxHEIGHT", action=self.size_action_class,
             help='selenium browser window size, ie. 1280x720')
+        add('--print-implemented-methods', action='store_true', default=False,
+            help='Print list of currently implemented selese methods in selenium driver and exit.')
         add('paths', metavar='PATH', nargs='+',
             help='Selenium IDE file paths')
 
         # deprecated
         add('--logging', action=self.logging_action_class)
         add('--selexe', action=self.selexe_action_class)
+
+
+def print_implemented_methods():
+    """Print an alphabetically sorted list of implemented selenese methods in selenium driver"""
+    from .selenium_driver import SeleniumDriver
+    supported_methods = []
+    for attr in SeleniumDriver.__dict__:
+        method = getattr(SeleniumDriver, attr)
+        try:
+            # Set wait_for_page to False so that we can call 'method' further down without real driver instance
+            method.command.wait_for_page = False
+        except AttributeError:
+            # no such command attribute, i.e. method is not a SeleniumCommand
+            continue
+
+        try:
+            method(None)
+        except NotImplementedError:
+            # this method is only a stub and not implemented yet, so ignore it
+            continue
+        except:  # noqa
+            # This method just fails be cause we have not called it correctly. However it is at this
+            # stage very likely that this is a properly implemented selenese command.
+            supported_methods.append(attr)
+    supported_methods.sort()
+    print('\n'.join(supported_methods))
 
 
 def main(argv=None):
@@ -161,6 +189,11 @@ def main(argv=None):
     @raise SystemExit on completion
     """
     args = SelexeArgumentParser().parse_args(sys.argv[1:] if argv is None else argv)
+
+    if args.print_implemented_methods:
+        print_implemented_methods()
+        exit()
+
     maxlevel = (logging.INFO if args.timeit else logging.ERROR)
     level = min(maxlevel, args.verbose, args.logging)
 
