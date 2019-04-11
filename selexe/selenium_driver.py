@@ -11,6 +11,7 @@ import time
 import re
 import math
 import json
+import types
 import six
 import functools
 import bs4 as beautifulsoup
@@ -23,8 +24,8 @@ from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.alert import Alert
 
-from .selenium_command import seleniumcommand, seleniumimperative, seleniummulticommand, selenium_multicommand_discover, \
-    NOT_PRESENT_EXCEPTIONS
+from .selenium_command import seleniumcommand, seleniumimperative, seleniummulticommand, \
+    selenium_multicommand_discover, NOT_PRESENT_EXCEPTIONS
 from .selenium_external import ExternalElement, ExternalContext, element_context, original_element
 
 logger = logging.getLogger(__name__)
@@ -230,8 +231,8 @@ class SeleniumDriver:
             fncdict = {key: value for key, value in six.iteritems(userfunctions.__dict__)
                        if not key.startswith("_") and callable(value)}
             for funcName, fnc in six.iteritems(fncdict):
-                # newBoundMethod = new.instancemethod(seleniumcommand(fnc), self, SeleniumDriver)
-                setattr(self, funcName, seleniumcommand(fnc))
+                newBoundMethod = types.MethodType(seleniumcommand(fnc), self)
+                setattr(self, funcName, newBoundMethod)
             logger.info("User functions: %s" % ", ".join(fncdict))
         except ImportError:
             logger.info("Using no user functions")
@@ -388,6 +389,13 @@ class SeleniumDriver:
                 select.select_by_visible_text(option.text)
             elif tag == 'index':
                 select.select_by_index(int(tvalue))
+
+    @seleniumimperative
+    def addSelection(self, target, value):
+        """
+        Add a selection of an option from a multiselect list using an option locator.
+        """
+        self.select(target, value)
 
     @seleniumcommand
     def close(self, _target=None, value=None):  # noqa
@@ -839,10 +847,6 @@ class SeleniumDriver:
         self.custom_locators[target] = value
 
     @seleniumimperative
-    def addSelection(self, target, value=None):
-        raise NotImplementedError('not implemented yet')
-
-    @seleniumimperative
     def allowNativeXpath(self, target, value=None):
         raise NotImplementedError('not implemented yet')
 
@@ -1166,6 +1170,18 @@ class SeleniumDriver:
             return True, False
 
     @seleniummulticommand
+    def Editable(self, target, value=None):  # noqa
+        """
+        Get if element for given locator is enabled. This means e.g. that an INPUT element can be edited.
+        @param target:
+        @param value: <not used>
+        """
+        try:
+            return True, self._find_target(target).is_enabled()
+        except NOT_PRESENT_EXCEPTIONS:
+            return True, False
+
+    @seleniummulticommand
     def ElementPresent(self, target, value=None):  # noqa
         """
         Verify that the specified element is somewhere on the page. Catch a NoSuchElementException in order to
@@ -1386,7 +1402,7 @@ class SeleniumDriver:
             find_many = functools.partial(self.driver.find_elements_by_css_selector, value)
         elif tag == 'dom':
             find_one = functools.partial(self.driver.execute_script, 'return eval(%s)' % json.dumps(value))
-            find_many = find_one
+            find_many = lambda: [find_one()]
         elif tag in self._by_target_locators:
             by = self._by_target_locators[tag]
             find_one = functools.partial(self.driver.find_element, by, value)
