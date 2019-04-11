@@ -117,7 +117,7 @@ def verifyValidation(self, target, value):
             };
         return false;
         // Errors are caught because selenium will be corrupted otherwise. The wait
-        //    parameters have to be reseted.
+        //    parameters have to be reset.
         } catch (e) {
             resetWaitParams();
             throw new SeleniumError(e);
@@ -145,10 +145,28 @@ def verifyValidation(self, target, value):
         };
     };
     """
-    expectedResult = value.split(':') if ':' in value else [value, '']
-    expectedClassValue, expectedValidationMsg = expectedResult
+    expected_class_value, expected_validation_msg = value.split(':') if ':' in value else [value, '']
     target_elem = self._find_target(target)
-    assert expectedClassValue.strip() in target_elem.get_attribute('class')
+    assert expected_class_value.strip() in target_elem.get_attribute('class')
     ActionChains(self.driver).move_to_element(target_elem).perform()
-    self.waitForText('id=validationMsg', expectedValidationMsg.strip())
+    self.waitForText('id=validationMsg', expected_validation_msg.strip())
     ActionChains(self.driver).move_by_offset(target_elem.size["width"] / 2 + 1, 0).perform()
+
+
+def waitForVerifyValidation(self, target, value):
+    """The verify validation variant waiting for the expected error class and validation message to show up.
+
+    Validation message are usually set as a result of a ajax request, so wait some time until the result takes effect.
+    :param target:
+    :param value:
+    :raises AssertionError: Either when the wrong error message is displayed, or the error class did not get set.
+    """
+    for _ in self.retries():
+        try:
+            self.verifyValidation(target, value)
+            break
+        except AssertionError:
+            continue
+    else:
+        # After timeout raise AssertionError:
+        raise AssertionError

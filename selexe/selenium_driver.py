@@ -18,7 +18,8 @@ import bs4 as beautifulsoup
 import selenium.webdriver
 
 from selenium.common.exceptions import NoSuchWindowException, NoSuchElementException, NoSuchAttributeException, \
-    UnexpectedTagNameException, NoSuchFrameException, WebDriverException, TimeoutException, InvalidSelectorException
+    UnexpectedTagNameException, NoSuchFrameException, WebDriverException, TimeoutException, InvalidSelectorException, \
+    StaleElementReferenceException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.action_chains import ActionChains
@@ -1080,9 +1081,11 @@ class SeleniumDriver:
                     siblings = parent.find_elements_by_xpath(element.tag_name)
                     hierarchy.append('%s:nth-of-type(%d)' % (element.tag_name, siblings.index(element) + 1))
                     element = parent
-            except InvalidSelectorException:
-                # Ignore if triggered by find_element_by_xpath('..') on parent nodes
+            except (InvalidSelectorException, StaleElementReferenceException):
+                # One of those exceptions is raised (1st in selenium-2.x, 2nd in selenium-3.x) when the topmost element
+                # in the DOM is reached, usually the <html> tag. In this case the exception is ignored.
                 if self.driver.find_element_by_xpath('/%s' % element.tag_name)._id != element._id:
+                    # Not topmost element, so raise error
                     raise
             hierarchy.append(element.tag_name)
         hierarchy.reverse()
