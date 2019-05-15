@@ -395,23 +395,71 @@ class SeleniumDriver:
     def addSelection(self, target, value):
         """
         Add a selection of an option from a multiselect list using an option locator.
+
+        :param target: an element locator identifying a multi-select box
+        :param value: an option locator (a label by default) which points at an option of the select element
+
+        Selecting yet another item in a list is simply achieved by calling self.select() on it.
         """
         self.select(target, value)
 
+    @seleniumimperative
+    def removeSelection(self, target, value):
+        """
+        Remove a selection from the set of selected options in a multi-select element using an option locator.
+        @see #doSelect for details of option locators
+
+        :param target: an element locator identifying a multi-select box
+        :param value: an option locator (a label by default) which points at an option of the select element
+
+        Option locator format
+        ----------------------
+
+        label=labelPattern: matches options based on their labels, i.e. the visible text. (This is the default.)
+            example: "label=regexp:^[Oo]ther"
+        value=valuePattern: matches options based on their values.
+            example: "value=other"
+        id=id: matches options based on their ids.
+            example: "id=option1"
+        index=index: matches an option based on its index (offset from zero).
+            example: "index=2"
+        """
+        target_elem = self._find_target(target)
+        tag, tvalue = self._tag_and_value(value, locators=('id', 'label', 'value', 'index'), default='label')
+        select = Select(target_elem)
+        # the select command in the IDE does not execute javascript. So skip this command if javascript is executed
+        # and wait for the following click command to execute the click event which will lead you to the next page
+        if not target_elem.find_elements_by_css_selector('option[onclick]'):
+            if tag == 'label':
+                tvalue = self._matchOptionText(target_elem, tvalue)
+                select.deselect_by_visible_text(tvalue)
+            elif tag == 'value':
+                tvalue = self._matchOptionValue(target_elem, tvalue)
+                select.deselect_by_value(tvalue)
+            elif tag == 'id':
+                option = target_elem.find_element_by_id(tvalue)
+                select.deselect_by_visible_text(option.text)
+            elif tag == 'index':
+                select.deselect_by_index(int(tvalue))
+
+    @seleniumimperative
+    def removeAllSelections(self, target, value=None):  # noqa
+        """Deselects all of the selected options in a multi-select element.
+
+        :param target: an element locator identifying a multi-select box
+        """
+        target_elem = self._find_target(target)
+        select = Select(target_elem)
+        select.deselect_all()
+
     @seleniumcommand
     def close(self, _target=None, value=None):  # noqa
-        """
-        Simulates the user clicking the "close" button in the titlebar of a popup window or tab.
-
-        :return:
-        """
+        """ Simulates the user clicking the "close" button in the titlebar of a popup window or tab."""
         self.driver.close()
 
     @seleniumcommand
     def waitForPageToLoad(self, _target=None, value=None):  # noqa
-        """
-        Wait until page changes
-        """
+        """Wait until page changes."""
         self.wait_pageload()
 
     @seleniumcommand
@@ -745,7 +793,7 @@ class SeleniumDriver:
         if mode == 'popup' and not self._window_is_popup():
             raise NoSuchWindowException('Could not find %s with target %s' % (mode, value))
 
-    @seleniumcommand
+    @seleniumcommand.nowait
     def selectWindow(self, target, value=None):  # noqa
         """
         Selects a popup window using a window locator; once a popup window has been selected, all commands go to that
@@ -989,15 +1037,6 @@ class SeleniumDriver:
         self.driver.refresh()
 
     @seleniumimperative
-    def removeAllSelections(self, target, value=None):  # noqa
-        """
-        Unselects all of the selected options in a multi-select element.
-
-        @param target: an element locator identifying a multi-select box
-        """
-        raise NotImplementedError('not implemented yet')
-
-    @seleniumimperative
     def removeScript(self, _target, value=None):  # noqa
         """
         *Important:* This command does nothing as works along with with `addScript` which is unsupported.
@@ -1008,17 +1047,6 @@ class SeleniumDriver:
         @param _target: the id of the script element to remove.
         """
         # logger.warning('This command does nothing as works along with with `addScript` which is unsupported.')
-        raise NotImplementedError('not implemented yet')
-
-    @seleniumimperative
-    def removeSelection(self, target, value):
-        """
-        Remove a selection from the set of selected options in a multi-select element using an option locator.
-        @see #doSelect for details of option locators
-
-        @param target: an element locator identifying a multi-select box
-        @param value: an option locator (a label by default)
-        """
         raise NotImplementedError('not implemented yet')
 
     @seleniumimperative
