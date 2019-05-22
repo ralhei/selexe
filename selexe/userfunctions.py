@@ -148,9 +148,13 @@ def verifyValidation(self, target, value):
     expected_class_value, expected_validation_msg = value.split(':') if ':' in value else [value, '']
     target_elem = self._find_target(target)
     assert expected_class_value.strip() in target_elem.get_attribute('class')
+    # Move the element of interest into the viewport to make the validation message appear at all. Scroll 100 pixels
+    # above the actual element to move a little bir further into the viewport:
+    y = target_elem.location['y'] - 100
+    self.driver.execute_script('window.scroll(0, %d)' % y)
+    ActionChains(self.driver).move_by_offset(1000, 1000)
     ActionChains(self.driver).move_to_element(target_elem).perform()
     self.waitForText('id=validationMsg', expected_validation_msg.strip())
-    ActionChains(self.driver).move_by_offset(target_elem.size["width"] / 2 + 1, 0).perform()
 
 
 def waitForVerifyValidation(self, target, value):
