@@ -87,51 +87,22 @@ class SizeAction(argparse.Action):
         setattr(namespace, self.dest, value)
 
 
-class DeprecatedLoggingAction(argparse.Action):
-    levels = {
-        'error': logging.ERROR,
-        'warning': logging.WARNING,
-        'success': SUCCESS,
-        'info': logging.INFO,
-        'debug': logging.DEBUG,
-        }
-    default = levels['error']
-    deprecated_by = '--verbose'
-
-    def __init__(self, option_strings, dest, metavar=None):
-        super(DeprecatedLoggingAction, self).__init__(option_strings=option_strings, dest=dest, default=self.default,
-                                                      choices=self.levels.keys(), nargs=1, required=False,
-                                                      help=argparse.SUPPRESS, metavar=metavar)
-
-    def __call__(self, parser, namespace, values, option_string=None):
-        logger.warning('%s option is deprecated, use %s instead' % (option_string, self.deprecated_by))
-        value = self.levels.get(values, self.default)
-        setattr(namespace, self.dest, value)
-
-
-class DeprecatedAction(argparse.Action):
-    def __init__(self, option_strings, dest, metavar=None):
-        super(DeprecatedAction, self).__init__(option_strings=option_strings, dest=dest, default=None,
-                                               choices=None, nargs=0, required=False,
-                                               help=argparse.SUPPRESS, metavar=metavar)
-
-    def __call__(self, parser, namespace, values, option_string=None):
-        logging.warning('%s option is deprecated, is no longer necessary' % option_string)
-
-
 class SelexeArgumentParser(argparse.ArgumentParser):
-    webdriver_action_class = WebdriverAction
-    verbosity_action_class = VerbosityAction
-    logging_action_class = DeprecatedLoggingAction
-    selexe_action_class = DeprecatedAction
-    size_action_class = SizeAction
-
+    """Customized ArgumentParser for selexe"""
     def __init__(self):
         super(SelexeArgumentParser, self).__init__(description='Run Selenium IDE test files using webdriver')
-        add = self.add_argument
+        self.add_main_args(self.add_argument)
+        self.add_cli_args(self.add_argument)
+
+    @staticmethod
+    def add_main_args(add):
+        """Add command line arguments useful for both the CLI version and the one embedded in pytest-selexe
+
+        :param add: A function (e.g. ArgumentParser.add_argument() or pytest's Parser.addoption())
+        """
         add('--timeit', action='store_true', default=False,
             help='measure time each command takes to execute, implies -v')
-        add('--driver', '-D', dest='drivers', action=self.webdriver_action_class,
+        add('--driver', '-D', dest='drivers', action=WebdriverAction,
             help='choose selenium driver, defaults to firefox')
         add('--baseuri', '-U', action='store', default=None,
             help='base URI of server to run the selenium tests, ie. "http://localhost:8080"')
@@ -139,20 +110,23 @@ class SelexeArgumentParser(argparse.ArgumentParser):
             help='selenium browser useragent')
         add('--pmd', action='store_true', default=False,
             help='postmortem debugging')
-        add('--verbose', '-v', action=self.verbosity_action_class,
-            help='verbosity level, accumulated, ie. -vvv')
-        add('--fixtures', '-F', action='store',
+        add('--selexe-fixtures', '-F', action='store',
             help='python module containing setUp(driver) and/or tearDown(driver) fixture functions')
-        add('--size', '-s', metavar="WIDTHxHEIGHT", action=self.size_action_class,
+        add('--size', '-S', metavar="WIDTHxHEIGHT", action=SizeAction,
             help='selenium browser window size, ie. 1280x720')
+
+    @staticmethod
+    def add_cli_args(add):
+        """Add command line arguments useful only for the CLI version of selexe
+
+        :param add: A function (e.g. ArgumentParser.add_argument() or pytest's Parser.addoption())
+        """
+        add('--verbose', '-v', action=VerbosityAction,
+            help='verbosity level, accumulated, ie. -vvv')
         add('--print-implemented-methods', action='store_true', default=False,
             help='Print list of currently implemented selese methods in selenium driver and exit.')
-        add('paths', metavar='PATH', nargs='+',
+        add('paths', metavar='PATH', nargs='*',
             help='Selenium IDE file paths')
-
-        # deprecated
-        add('--logging', action=self.logging_action_class)
-        add('--selexe', action=self.selexe_action_class)
 
 
 def print_implemented_methods():
@@ -219,10 +193,15 @@ def main(argv=None):
     failed = 0
     for path in args.paths:
         for driver in args.drivers:
-            runner =  selexe_runner.SelexeRunner(path, baseuri=args.baseuri, pmd=args.pmd, fixtures=args.fixtures,
-                                                 timeit=args.timeit, driver=driver, window_size=args.size,
-                                                 useragent=args.useragent)
-            errors = runner.run()
+            runner = selexe_runner.SelexeRunner(path, baseuri=args.baseuri, pmd=args.pmd, fixtures=args.fixtures,
+                                                timeit=args.timeit, driver=driver, window_size=args.size,
+                                                useragent=args.useragent)
+            try:
+                errors = runner.run()
+            except KeyboardInterrupt:
+                raise
+            except Exception as msg:
+                errors = "Running %s failed with %s\n" % (path, str(msg))
             if errors:
                 failed += 1
                 logging.error("Verification errors in %s %s: %s\n" % (driver, path, errors))
