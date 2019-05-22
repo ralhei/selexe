@@ -3,6 +3,7 @@ import warnings
 from pkg_resources import parse_version
 
 from .selexe_runner import SelexeRunner, SelexeError
+from .__main__ import SelexeArgumentParser
 
 warnings.filterwarnings('once', category=DeprecationWarning)  # show all deprecated warning only once
 del warnings

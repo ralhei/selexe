@@ -1,30 +1,20 @@
 """
 UT functions to test loading and execution of pure selenese files
 """
-import os
 import sys
-import subprocess
 
 from selenium.common.exceptions import NoSuchElementException
-
-from environment import SELEXE_DRIVER, SELEXE_TIMEOUT, SELEXE_BASEURI, PHANTOMJS_PATH, SELEXE_TESTSERVER_PORT
 sys.path.insert(0, '..')
 from selexe import SelexeRunner
+from environment import SELEXE_DRIVER, SELEXE_BASEURI, PHANTOMJS_PATH, SELEXE_TESTSERVER_PORT  # noqa
+
 
 SELEXE_OPTIONS = {
     'driver': SELEXE_DRIVER,
-    'timeout': SELEXE_TIMEOUT,
     'baseuri': SELEXE_BASEURI,
 }
 if SELEXE_DRIVER == 'phantomjs':
     SELEXE_OPTIONS['executable_path'] = PHANTOMJS_PATH
-
-def setup_module():
-    setup_module.testserver = subprocess.Popen(('python', 'testserver.py', '%d' % SELEXE_TESTSERVER_PORT), cwd='../testserver')
-
-
-def teardown_module():
-    setup_module.testserver.terminate()
 
 
 def test_simple_page():
@@ -46,7 +36,7 @@ def test_fixtures():
     selexe = SelexeRunner('fixtures.sel', fixtures='selexeFixtures.py', **SELEXE_OPTIONS)
     errors = selexe.run()
     assert not errors
-    
+
 
 def test_fixtures_fail():
     """run empty selenese test file, just to check whether fixtures work
@@ -54,7 +44,7 @@ def test_fixtures_fail():
     """
     selexe = SelexeRunner('fixtures.sel', fixtures=None, **SELEXE_OPTIONS)
     try:
-        errors = selexe.run()
+        selexe.run()
     except NoSuchElementException:
         pass
 

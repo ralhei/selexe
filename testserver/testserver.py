@@ -14,13 +14,13 @@ HTML_SKEL = """<html>
 
 @route('/static/:name')
 def static_page(name):
-    return open(name+'.html').read()
+    return open(name + '.html').read()
 
 
 @route('/post', method='POST')
 def post():
-    "Accept any kind of POSTing, render all form fields into SPAN elements with 'id' set to the form field name"
-    res = [ '<h1>POST results</h1>']
+    """Accept any kind of POSTing, render all form fields into SPAN elements with 'id' set to the form field name"""
+    res = ['<h1>POST results</h1>']
     for field in request.forms:
         res.append('%s: <span id="%s">%s</span><br/>' % (field, field, request.forms[field]))
     return HTML_SKEL % '\n'.join(res)
@@ -28,4 +28,5 @@ def post():
 
 if __name__ == '__main__':
     import sys
+
     run(host='localhost', port=sys.argv[1])
